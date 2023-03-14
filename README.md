@@ -4,15 +4,8 @@
 
 ## Development information
 
-- **Secret**
+you can find token in docs 
 
-    username: gitlab+deploy-token-1375
-
-    password: izZixfGz3WcxJKzJ5yU7
-
-- **Access Token**
-
-    glpat-heCVogvwqTjzKGhquBvr
 
 ## References
 - sPLINK: [sPLINK: a hybrid federated tool as a robust alternative to meta-analysis in genome-wide association studies](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02562-1)
