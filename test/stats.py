@@ -18,12 +18,8 @@ class CovarianceTestCase(unittest.TestCase):
 
     def test_unnorm_autocovariance(self):
         result = federatedprs.unnorm_autocovariance(self.X)
-        np.testing.assert_array_almost_equal(np.dot(self.X.T, self.X), result, decimal=5)
+        np.testing.assert_array_almost_equal(self.X.T @ self.X, result, decimal=5)
 
     def test_unnorm_covariance(self):
         result = federatedprs.unnorm_covariance(self.X, self.y)
         np.testing.assert_array_almost_equal(np.dot(self.X.T, self.y), result, decimal=5)
-
-    # def test_vmap_unnorm_autocovariance(self):
-    #     result = federatedprs.vmap_unnorm_autocovariance(self.X)
-    #     np.testing.assert_array_almost_equal(np.dot(self.X.T, self.X), result, decimal=5)
