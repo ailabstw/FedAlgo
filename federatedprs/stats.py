@@ -13,7 +13,7 @@ def matmul(X: np.ndarray[(1, 1), np.floating], Y: np.ndarray[(1, 1), np.floating
 def gen_mvdot(y: np.ndarray):
     @jit
     def _mvdot(X: np.ndarray) -> np.ndarray:
-        return vmap(jnp.vdot, (0, None), 0)(X.T, y)
+        return vmap(jnp.vdot, (0, None), 0)(X, y)
     
     return _mvdot
 

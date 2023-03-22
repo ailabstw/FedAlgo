@@ -7,7 +7,7 @@ class FedLinearRegressionTestCase(unittest.TestCase):
     def setUp(self):
         self.n = 100
         self.dim = 10
-        self.X = np.random.rand(self.dim, self.n)
+        self.X = np.random.rand(self.n, self.dim)
         self.beta = np.random.rand(self.dim)
         self.model = federatedprs.FedLinearRegression(self.beta)
 
@@ -19,4 +19,9 @@ class FedLinearRegressionTestCase(unittest.TestCase):
 
     def test_predict(self):
         result = self.model.predict(self.X)
-        np.testing.assert_array_almost_equal(np.dot(self.X.T, self.beta), result, decimal=5)
+        np.testing.assert_array_almost_equal(np.dot(self.X, self.beta), result, decimal=5)
+
+    def test_fit(self):
+        y = np.dot(self.X, self.beta) + np.random.rand(self.n)
+        model = federatedprs.FedLinearRegression.fit(self.X, y)
+        self.assertTrue(True)
