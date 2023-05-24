@@ -77,3 +77,11 @@ class LinearRegression:
     def fit(cls, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating], algo=CholeskyLRTrainer()):
         beta = algo.fit(X, y)
         return LinearRegression(beta = beta)
+    
+    def residual(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        return y - self.predict(X)
+    
+    def sse(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        res = self.residual(X, y)
+        return jnp.vdot(res.T, res)
+    
