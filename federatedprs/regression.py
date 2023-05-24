@@ -45,7 +45,7 @@ class QRLRTrainer(LRTrainer):
         return beta
 
 
-class FedLinearRegression:
+class LinearRegression:
     """A class for federated linear regression
 
     Args:
@@ -76,4 +76,4 @@ class FedLinearRegression:
     @classmethod
     def fit(cls, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating], algo=CholeskyLRTrainer()):
         beta = algo.fit(X, y)
-        return FedLinearRegression(beta = beta)
+        return LinearRegression(beta = beta)

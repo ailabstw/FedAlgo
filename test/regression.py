@@ -2,14 +2,14 @@ import unittest
 import federatedprs
 import numpy as np
 
-class FedLinearRegressionTestCase(unittest.TestCase):
+class LinearRegressionTestCase(unittest.TestCase):
 
     def setUp(self):
         self.n = 100
         self.dim = 10
         self.X = np.random.rand(self.n, self.dim)
         self.beta = np.random.rand(self.dim)
-        self.model = federatedprs.FedLinearRegression(self.beta)
+        self.model = federatedprs.LinearRegression(self.beta)
 
     def tearDown(self):
         self.n = None
@@ -23,5 +23,5 @@ class FedLinearRegressionTestCase(unittest.TestCase):
 
     def test_fit(self):
         y = np.dot(self.X, self.beta) + np.random.rand(self.n)
-        model = federatedprs.FedLinearRegression.fit(self.X, y)
+        model = federatedprs.LinearRegression.fit(self.X, y)
         self.assertTrue(True)
