@@ -3,5 +3,5 @@ from .stats import (
 )
 from .regression import (
     LinearRegression,
-    LRTrainer, InverseLRTrainer, CholeskyLRTrainer, QRLRTrainer,
+    LinearSolver, InverseSolver, CholeskySolver, QRSolver,
 )
