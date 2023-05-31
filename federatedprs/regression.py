@@ -43,7 +43,15 @@ class QRSolver(LinearSolver):
         return jsp.linalg.solve(R, unnorm_covariance(Q, y), lower=False)
 
 
-class LinearRegression:
+class LinearModel(object, metaclass=ABCMeta):
+    def __init__(self) -> None:
+        raise NotImplementedError
+    
+    def predict(self, X: np.ndarray[(1, 1), np.floating]):
+        raise NotImplementedError
+
+
+class LinearRegression(LinearModel):
     """A class for federated linear regression
 
     Args:
@@ -85,4 +93,37 @@ class LinearRegression:
     def sse(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
         res = self.residual(X, y)
         return jnp.vdot(res.T, res)
+
+
+class LogisticRegression(LinearModel):
+    def __init__(self, beta = None) -> None:
+        self.__beta = beta
+    
+    def predict(self, X: np.ndarray[(1, 1), np.floating]):
+        predicted_y = 1 / (1 + jnp.exp(-jnp.dot(X, self.__beta)))
+        return jnp.expand_dims(predicted_y, -1)
+    
+    def fit(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        grad = self.gradient(X, y)
+        H = self.hessian(X)
+        self.__beta = self.beta(grad, H)
+        
+    def residual(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        return jnp.expand_dims(y, -1) - self.predict(X)
+    
+    def gradient(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        return mvdot(X.T, self.residual(X, y))
+    
+    def hessian(self, X: np.ndarray[(1, 1), np.floating]):
+        predicted_y = self.predict(X)
+        return jnp.dot(jnp.multiply(X.T, (predicted_y * (1 - predicted_y)).T), X)
+    
+    def loglikelihood(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+        epsilon = jnp.finfo(float).eps
+        predicted_y = self.predict(X)
+        return jnp.sum(y * jnp.log(predicted_y + epsilon) + (1 - y) * jnp.log(1 - predicted_y + epsilon))
+    
+    def beta(self, gradient, hessian, solver=CholeskySolver()):
+        # solver calculates H^-1 grad in faster way
+        return jnp.expand_dims(self.__beta, -1) + solver(hessian, gradient)
     
