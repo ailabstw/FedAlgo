@@ -1,6 +1,6 @@
 import unittest
-from regression import FedLinearRegressionTestCase
-from stats import CovarianceTestCase
+from test.regression import FedLinearRegressionTestCase
+from test.stats import CovarianceTestCase
 
 if __name__ == '__main__':
     flr_suite = unittest.TestLoader().loadTestsFromTestCase(FedLinearRegressionTestCase)
