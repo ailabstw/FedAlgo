@@ -9,7 +9,7 @@ authors = [
     { name="Yueh-Hua Tu", email="yuehhua.tu@ailabs.com" },
     { name="Yi-Lun Lee", email="yilun.lee@ailabs.tw" },
 ]
-description = "A GWAS package for supporting federated analysis"
+description = "A GWAS-PRS package for supporting federated analysis"
 requires-python = ">=3.9"
 classifiers = [
    "Programming Language :: Python :: 3",
