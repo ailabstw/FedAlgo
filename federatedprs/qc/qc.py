@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os, sys
 from typing import List, Tuple
-
+import numpy.typing as npt
 
 
 from federatedprs.qc.utils import call_bash_cmd
@@ -53,33 +53,27 @@ def cal_qc_client(
 
     
 # aggregator use het to filter ind
-def filter_ind(HET, HET_MEAN, HET_STD, fid_iid_list, missing_index_values):
-    HET = np.abs((HET - HET_MEAN ) / HET_STD)
+def filter_ind(HET, het_mean: float, heta_std: float, HETER_SD: float, sample_list: npt.NDArray[np.byte]):
+    HET = np.abs((HET - het_mean ) / heta_std)
     # currently het is not filtered
-    #remove_idx = np.where(HET > HETER_SD)[0]
+    remove_idx = np.where(HET > HETER_SD)[0]
+    remove_list = sample_list[remove_idx]
     
-    remove_idx = []
-    if len(missing_index_values) > 0:
-        remove_idx = np.array(missing_index_values)
-        remove_list = np.array(fid_iid_list)[remove_idx]
-        remove_list = remove_list.tolist()
-    else:
-        remove_list = []
     return remove_list
 
 
 # edge create bed after qc
 def create_filtered_bed(
-        bfile_path: str, 
+        bfile_path: str,
         out_path: str, 
         include_snp_list: List[str], 
-        MIND_QC: float, 
+        MIND_QC: float,
         PLINK2: str,
-        remove_ind_list: List[Tuple[str,str]] = [] ):
+        keep_ind_list: List[Tuple[str,str]] = [] ):
     
     with open(f"{out_path}.ind_list", "w") as FF:
         FF.write("IND\tIND\n")
-        for i,j in remove_ind_list:
+        for i,j in keep_ind_list:
             FF.write(f"{i}\t{j}\n")
 
     assert len(include_snp_list) > 0
@@ -89,7 +83,7 @@ def create_filtered_bed(
             FF.write(f"{i}\n")
 
     cmd = f"\"{PLINK2}\" --allow-extra-chr --autosome  --rm-dup force-first "
-    rm_cmd = f"--remove \"{out_path}.ind_list\""
+    rm_cmd = f"--keep \"{out_path}.ind_list\""
     out, err = call_bash_cmd(f"{cmd} --bfile \"{bfile_path}\" --mind {MIND_QC} --extract \"{out_path}.snp_list\" --out \"{out_path}\" --hardy --make-bed {rm_cmd}")
 
     return out_path

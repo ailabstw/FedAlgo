@@ -3,9 +3,10 @@ from test.regression import FedLinearRegressionTestCase
 from test.stats import CovarianceTestCase
 
 if __name__ == '__main__':
-    flr_suite = unittest.TestLoader().loadTestsFromTestCase(FedLinearRegressionTestCase)
+    linear_suite = unittest.TestLoader().loadTestsFromTestCase(LinearRegressionTestCase)
+    logist_suite = unittest.TestLoader().loadTestsFromTestCase(LogisticRegressionTestCase)
     cov_suite = unittest.TestLoader().loadTestsFromTestCase(CovarianceTestCase)
-    alltests = unittest.TestSuite([flr_suite, cov_suite])
+    alltests = unittest.TestSuite([linear_suite, logist_suite, cov_suite])
     result = unittest.TextTestRunner().run(alltests)
 
     if result.wasSuccessful():

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Set
 import pandas as pd
 import os
 import logging
@@ -39,8 +39,8 @@ class GwasDataLoader():
         self.FAM = None
         self.BIM = None
         self.COV = None
-        self.snp_idx_list = set()
-        self.ind_idx_list = set()
+        self.snp_idx_list: Set[str] = set()
+        self.ind_idx_list: Set[str] = set()
         self.read_in_flag = False
 
 
