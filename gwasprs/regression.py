@@ -15,7 +15,7 @@ class InverseSolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
         
-    def __call__(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         inv_X = jnp.linalg.inv(X)
         # beta = X^-1 y
         return mvdot(inv_X, y)
@@ -24,7 +24,7 @@ class CholeskySolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
         
-    def __call__(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         # L = Cholesky(X)
         L = jnp.linalg.cholesky(X)
         # solve Lz = y
@@ -36,7 +36,7 @@ class QRSolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
         
-    def __call__(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         # Q, R = QR(X)
         Q, R = jnp.linalg.qr(X)
         # solve R beta = Qty
@@ -47,7 +47,7 @@ class LinearModel(object, metaclass=ABCMeta):
     def __init__(self) -> None:
         raise NotImplementedError
     
-    def predict(self, X: np.ndarray[(1, 1), np.floating]):
+    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         raise NotImplementedError
 
 
@@ -55,9 +55,9 @@ class LinearRegression(LinearModel):
     """A class for federated linear regression
 
     Args:
-        beta (np.ndarray[(1,), np.floating], optional): _description_. Defaults to None.
-        XtX (np.ndarray[(1, 1), np.floating], optional): _description_. Defaults to None.
-        Xty (np.ndarray[(1,), np.floating], optional): _description_. Defaults to None.
+        beta ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
+        XtX ('np.ndarray[(1, 1), np.floating]', optional): _description_. Defaults to None.
+        Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
         is_inv (bool, optional): if provided XtX is inversed or not. Defaults to False.
     """
     
@@ -75,22 +75,22 @@ class LinearRegression(LinearModel):
             
         self.__beta = beta
     
-    def predict(self, X: np.ndarray[(1, 1), np.floating]):
+    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         f = gen_mvdot(self.__beta)
         return f(X)
 
     @classmethod
-    def fit(cls, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating], algo=CholeskySolver()):
+    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=CholeskySolver()):
         if isinstance(algo, QRSolver):
             beta = algo(X, y)
         else:
             beta = algo(unnorm_autocovariance(X), unnorm_covariance(X, y))
         return LinearRegression(beta = beta)
     
-    def residual(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return y - self.predict(X)
     
-    def sse(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         res = self.residual(X, y)
         return jnp.vdot(res.T, res)
 
@@ -99,26 +99,26 @@ class LogisticRegression(LinearModel):
     def __init__(self, beta = None) -> None:
         self.__beta = beta
     
-    def predict(self, X: np.ndarray[(1, 1), np.floating]):
+    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         predicted_y = 1 / (1 + jnp.exp(-jnp.dot(X, self.__beta)))
         return jnp.expand_dims(predicted_y, -1)
     
-    def fit(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def fit(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         grad = self.gradient(X, y)
         H = self.hessian(X)
         self.__beta = self.beta(grad, H)
         
-    def residual(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return jnp.expand_dims(y, -1) - self.predict(X)
     
-    def gradient(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def gradient(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return mvdot(X.T, self.residual(X, y))
     
-    def hessian(self, X: np.ndarray[(1, 1), np.floating]):
+    def hessian(self, X: 'np.ndarray[(1, 1), np.floating]'):
         predicted_y = self.predict(X)
         return jnp.dot(jnp.multiply(X.T, (predicted_y * (1 - predicted_y)).T), X)
     
-    def loglikelihood(self, X: np.ndarray[(1, 1), np.floating], y: np.ndarray[(1,), np.floating]):
+    def loglikelihood(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         epsilon = jnp.finfo(float).eps
         predicted_y = self.predict(X)
         return jnp.sum(y * jnp.log(predicted_y + epsilon) + (1 - y) * jnp.log(1 - predicted_y + epsilon))
