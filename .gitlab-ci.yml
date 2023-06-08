@@ -1,0 +1,74 @@
+image: python:3.9
+
+stages:
+  - test
+  - build
+  - deploy
+
+.setup-python:
+  script:
+    - pip install virtualenv
+    - virtualenv venv
+    - source venv/bin/activate
+    - python --version ; pip --version  # For debugging
+    - pip install -r requirements.txt
+
+.test:
+  coverage: /Test coverage (\d+\.\d+%)/
+  after_script:
+    - pip install nose
+    - nosetests test/main.py
+
+.build:
+  script:
+    - pip install build
+    - python -m build
+
+.deploy:
+  script:
+    - pip install twine
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+
+test-develop-python-3.9:
+  image: python:3.9
+  stage: test
+  except:
+    - main
+  extends:
+    - .setup-python
+    - .test
+  
+build-develop-python-3.9:
+  stage: build
+  except:
+    - main
+  extends:
+    - .setup-python
+    - .build
+
+test-production-python-3.9:
+  image: python:3.9
+  stage: test
+  only:
+    - main
+  extends:
+    - .setup-python
+    - .test
+
+build-production-python-3.9:
+  stage: build
+  only:
+    - main
+  extends:
+    - .setup-python
+    - .build
+
+deploy-production-python-3.9:
+  image: python:3.9
+  stage: deploy
+  only:
+    - main
+  extends:
+    - .setup-python
+    - .build
+    - .deploy
