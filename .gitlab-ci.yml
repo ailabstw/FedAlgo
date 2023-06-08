@@ -6,7 +6,7 @@ stages:
   - deploy
 
 .setup-python:
-  script:
+  before_script:
     - pip install virtualenv
     - virtualenv venv
     - source venv/bin/activate
@@ -15,7 +15,7 @@ stages:
 
 .test:
   coverage: /Test coverage (\d+\.\d+%)/
-  after_script:
+  script:
     - pip install nose
     - nosetests test/main.py
 
@@ -25,7 +25,7 @@ stages:
     - python -m build
 
 .deploy:
-  script:
+  after_script:
     - pip install twine
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
