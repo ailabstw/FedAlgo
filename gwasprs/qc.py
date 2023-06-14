@@ -121,7 +121,7 @@ def ld_prune(bfile_path, out_path, include_snp_list = [], remove_ind_list = []):
 
 
 from .hwe import setup_plink_hwp
-hwp_so = setup_plink_hwp()
+plink_hwp = setup_plink_hwp()
 
 
 
@@ -141,7 +141,7 @@ def filter_snp (
     MAF = (ALLELE_COUNT[:,0]*2 + ALLELE_COUNT[:,1]) / (2*COUNT)
     
     # HWE
-    PVALUE = cal_hwe_pvalue_vec(ALLELE_COUNT[:,1], ALLELE_COUNT[:,0], ALLELE_COUNT[:,2], hwp_so)
+    PVALUE = cal_hwe_pvalue_vec(ALLELE_COUNT[:,1], ALLELE_COUNT[:,0], ALLELE_COUNT[:,2], plink_hwp)
     
     # MISSING
     MISSING = 1 - ( COUNT/SAMPLE_COUNT )

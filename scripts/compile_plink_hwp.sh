@@ -1,1 +1,1 @@
-gcc -g -fPIC -Wall -Werror -Wextra externals/plink_hwp.cc -shared -o lib/plink_hwp.so
+gcc -g -fPIC -Wall -Werror -Wextra externals/plink_hwp.cc -shared -o gwasprs/plink_hwp.so
