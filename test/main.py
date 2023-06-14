@@ -1,5 +1,5 @@
 import unittest
-from test.regression import FedLinearRegressionTestCase
+from test.regression import LinearRegressionTestCase, LogisticRegressionTestCase
 from test.stats import CovarianceTestCase
 
 if __name__ == '__main__':
