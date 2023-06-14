@@ -120,17 +120,10 @@ def ld_prune(bfile_path, out_path, include_snp_list = [], remove_ind_list = []):
 
 
 
+from .hwe import setup_plink_hwp
+hwp_so = setup_plink_hwp()
 
 
-
-
-
-
-
-
-######### for agg 
-hwp_so_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plink_hwp.so" )
-hwp_so = setup_plink_hwp(hwp_so_path)
 
 def filter_snp (
         ALLELE_COUNT: np.ndarray, 
