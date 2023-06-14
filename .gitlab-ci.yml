@@ -3,7 +3,7 @@ variables:
   DOCKER_DRIVER: overlay
 
 services:
-  - docker:dind
+  - docker:20.10-dind
 
 stages:
   - test
@@ -15,7 +15,7 @@ stages:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
 
 .build-docker:
-  image: docker:latest
+  image: docker:20.10
   script:
     - |
       docker build -t $IMAGE --pull --file ./Dockerfile .
