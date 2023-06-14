@@ -29,13 +29,10 @@ stages:
     - python --version ; pip --version  # For debugging
     - pip install -r requirements.txt
 
-.precompile:
-  script:
-    - ./scripts/compile_plink_hwp.sh 
-
 .test:
   coverage: /Test coverage (\d+\.\d+%)/
   script:
+    - ./scripts/compile_plink_hwp.sh 
     - pip install nose
     - nosetests test/main.py
 
@@ -56,7 +53,6 @@ test-develop:
     - main
   extends:
     - .setup-python
-    - .precompile
     - .test
   parallel:
     matrix:
@@ -95,7 +91,6 @@ test-production:
     - main
   extends:
     - .setup-python
-    - .precompile
     - .test
   parallel:
     matrix:
