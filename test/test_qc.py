@@ -4,8 +4,8 @@ import logging
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/..')
 
-from federatedprs.qc.qc import cal_qc_client, filter_snp, cal_het_sd, create_filtered_bed, filter_ind
-from federatedprs.qc.utils import read_bim, read_fam
+from gwasprs.qc import cal_qc_client, filter_snp, cal_het_sd, create_filtered_bed, filter_ind
+from gwasprs.utils import read_bim, read_fam
 
 logging.basicConfig(level=logging.DEBUG)
 

@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
-import os, sys
+import os
 from typing import List, Tuple
 import numpy.typing as npt
 
 
-from federatedprs.qc.utils import call_bash_cmd
-from federatedprs.qc.lib_qc import read_hardy, read_hwe_pvalue_so, cal_hwe_pvalue_vec
+from .utils import call_bash_cmd
+from .hwe import read_hardy, setup_plink_hwp, cal_hwe_pvalue_vec
 
 
 # edge calculate basic qc stat
@@ -130,7 +130,7 @@ def ld_prune(bfile_path, out_path, include_snp_list = [], remove_ind_list = []):
 
 ######### for agg 
 hwp_so_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plink_hwp.so" )
-hwp_so = read_hwe_pvalue_so(hwp_so_path)
+hwp_so = setup_plink_hwp(hwp_so_path)
 
 def filter_snp (
         ALLELE_COUNT: np.ndarray, 

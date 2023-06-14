@@ -1,5 +1,5 @@
 import unittest
-import federatedprs
+import gwasprs
 import numpy as np
 from scipy.stats import norm
 
@@ -11,7 +11,7 @@ class LinearRegressionTestCase(unittest.TestCase):
         self.X = np.random.rand(self.n, self.dim)
         self.beta = np.random.rand(self.dim)
         self.y = np.dot(self.X, self.beta) + np.random.rand(self.n)
-        self.model = federatedprs.LinearRegression(self.beta)
+        self.model = gwasprs.LinearRegression(self.beta)
 
     def tearDown(self):
         self.n = None
@@ -25,7 +25,7 @@ class LinearRegressionTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(np.dot(self.X, self.beta), result, decimal=5)
 
     def test_fit(self):
-        model = federatedprs.LinearRegression.fit(self.X, self.y)
+        model = gwasprs.LinearRegression.fit(self.X, self.y)
         self.assertTrue(True)
         
     def test_residual(self):
@@ -48,7 +48,7 @@ class LogisticRegressionTestCase(unittest.TestCase):
         pred_y = norm.cdf(z - np.mean(z) + np.random.randn(self.n))
         binarize = lambda x: 1.0 if x > 0.5 else 0.0
         self.y = np.array(list(map(binarize, pred_y)))
-        self.model = federatedprs.LogisticRegression(self.beta)
+        self.model = gwasprs.LogisticRegression(self.beta)
 
     def tearDown(self):
         self.n = None

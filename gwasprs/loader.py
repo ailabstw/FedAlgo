@@ -5,7 +5,7 @@ import logging
 import numpy as np
 from bed_reader import open_bed
 
-from federatedprs.io.utils import rename_snp
+from .utils import rename_snp
 
 class GwasDataLoader():
     

@@ -18,10 +18,7 @@ def read_hardy(out_path: str):
 
 
 
-def read_hwe_pvalue_so(plink_hwp_so_path):
-    '''
-    gcc -g -fPIC -Wall -Werror -Wextra  plink_hwp.cc -shared -o plink_hwp.so
-    '''
+def setup_plink_hwp(plink_hwp_so_path):
     # hwp_so_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plink_hwp.so" )
     hwp_so = cdll.LoadLibrary(plink_hwp_so_path)
     hwp_so.HweP_py.argtypes = [ c_int32, c_int32, c_int32, c_uint32 ]
@@ -44,12 +41,6 @@ def series_tolist(HET, n):
     HET = HET.tolist()
     HET = (c_int32 * n)(*HET)
     return HET
-    
-#def snp_id_values2id(snp_id_values):
-#    snp_list = []
-#    for i in snp_id_values.astype('U30'):
-#        snp_list.append(i.split("\t")[1])
-#    return np.array(snp_list)
 
 def cal_hwe_pvalue_vec(HET, HOM1, HOM2, hwp_so):
     n = len(HET)

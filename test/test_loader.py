@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/..')
 
-from federatedprs.io.loader import GwasDataLoader, GwasSnpIterator
+from gwasprs.loader import GwasDataLoader, GwasSnpIterator
 
 logging.basicConfig(level=logging.DEBUG)
 
