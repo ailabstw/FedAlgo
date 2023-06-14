@@ -1,7 +1,25 @@
+variables:
+  IMAGE: $CI_REGISTRY_IMAGE:latest
+  DOCKER_DRIVER: overlay
+
+services:
+  - docker:dind
+
 stages:
   - test
   - build
   - deploy
+
+.docker-login:
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
+.build-docker:
+  image: docker:latest
+  script:
+    - |
+      docker build -t $IMAGE --pull --file ./Dockerfile .
+      docker push $IMAGE
 
 .setup-python:
   before_script:
@@ -56,6 +74,14 @@ build-develop:
         - python:3.7
         - python:3.8
         - python:3.9
+
+build-environment:
+  stage: build
+  only:
+    - ci
+  extends:
+    - .docker-login
+    - .build-docker
 
 test-production:
   image: ${PYTHON}
