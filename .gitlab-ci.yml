@@ -32,6 +32,7 @@ stages:
 .test:
   coverage: /Test coverage (\d+\.\d+%)/
   script:
+    - chmod +x ./scripts/compile_plink_hwp.sh 
     - ./scripts/compile_plink_hwp.sh 
     - pip install nose
     - nosetests test/main.py
