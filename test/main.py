@@ -1,6 +1,6 @@
 import unittest
-from regression import LinearRegressionTestCase, LogisticRegressionTestCase
-from stats import CovarianceTestCase
+from test.regression import LinearRegressionTestCase, LogisticRegressionTestCase
+from test.stats import CovarianceTestCase
 
 if __name__ == '__main__':
     linear_suite = unittest.TestLoader().loadTestsFromTestCase(LinearRegressionTestCase)
