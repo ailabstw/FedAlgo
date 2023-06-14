@@ -58,22 +58,23 @@ class LinearRegression(LinearModel):
         beta ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
         XtX ('np.ndarray[(1, 1), np.floating]', optional): _description_. Defaults to None.
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
-        is_inv (bool, optional): if provided XtX is inversed or not. Defaults to False.
     """
     
-    def __init__(self, beta = None, XtX = None, Xty = None, is_inv = False) -> None:
+    def __init__(self, beta = None, XtX = None, Xty = None, algo=CholeskySolver()) -> None:
         if beta is None:
             if XtX is None or Xty is None:
                 raise ValueError("Must provide XtX and Xty, since beta is not provided.")
             
-            if is_inv:
-                inv_XtX = XtX
-            else:
-                inv_XtX = jnp.linalg.inv(XtX)
+            if isinstance(algo, QRSolver):
+                raise ValueError("QRSolver is not supported in constructor.")
             
-            beta = mvdot(XtX, Xty)
-            
-        self.__beta = beta
+            self.__beta = algo(XtX, Xty)
+        else:
+            self.__beta = beta
+        
+    @property
+    def coef(self):
+        return self.__beta
     
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         f = gen_mvdot(self.__beta)
@@ -93,6 +94,14 @@ class LinearRegression(LinearModel):
     def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         res = self.residual(X, y)
         return jnp.vdot(res.T, res)
+
+    def t_stats(self, sse, XtX, dof):
+        XtXinv = jnp.linalg.inv(XtX)
+        sigma_squared = sse / dof
+        vars = (sigma_squared * XtXinv).diagonal()
+        std = jnp.sqrt(vars)
+        t_stat = self.coef / std
+        return t_stat
 
 
 class LogisticRegression(LinearModel):
