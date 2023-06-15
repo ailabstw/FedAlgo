@@ -76,6 +76,18 @@ class LinearRegression(LinearModel):
     def coef(self):
         return self.__beta
     
+    def dof(self, nobs):
+        """Degrees of freedom
+
+        Args:
+            nobs (int, np.ndarray): Number of observations
+
+        Returns:
+            int: _description_
+        """
+        k = self.__beta.shape[0]
+        return nobs - k
+    
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         f = gen_mvdot(self.__beta)
         return f(X)
