@@ -14,3 +14,10 @@ from .regression import (
     LinearRegression, LogisticRegression,
     LinearSolver, InverseSolver, CholeskySolver, QRSolver,
 )
+
+from .qc import (
+    cal_qc_client, filter_ind, create_filtered_bed,
+    filter_snp, cal_het_sd
+)
+
+
