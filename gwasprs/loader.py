@@ -98,7 +98,7 @@ class GwasDataLoader():
     def get_snp(self, autosome_only = False):
         # need to reparse BIM.ID for inference of string type
         if autosome_only:
-            BIM = self.BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)]
+            BIM = self.BIM.loc[self.BIM.CHR.isin(AUTOSOME_LIST)]
             SNP = BIM.ID.values.tolist()
         else:
             SNP = self.BIM.ID.values.tolist()
@@ -108,7 +108,7 @@ class GwasDataLoader():
     def get_old_snp(self, autosome_only = False):
         assert self.rename_snp_flag
         if autosome_only:
-            BIM = self.BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)]
+            BIM = self.BIM.loc[self.BIM.CHR.isin(AUTOSOME_LIST)]
             SNP = BIM.Original_ID.values.tolist()
         else:
             SNP = self.BIM.Original_ID.values.tolist()
