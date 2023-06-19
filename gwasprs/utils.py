@@ -11,6 +11,9 @@ def truncate(ss, limit = 5 ):
     return ss
 
 
+AUTOSOME_LIST = [ i for i in range(1,22) ] + \
+    [ str(i) for i in range(1,22) ] + \
+    [ f"chr{i}" for i in range(1,22) ] 
 
 def rename_snp(da, to_byte = True, to_dict = False):
     da = da.copy().reset_index(drop = True)

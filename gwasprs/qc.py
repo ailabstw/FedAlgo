@@ -26,7 +26,7 @@ def cal_qc_client(
                 FF.write(f"{i}\n")
         extract_cmd = f"--extract \"{out_path}.common_snp_list\""
         
-    cmd0 = f"\"{PLINK2}\" --bfile \"{bfile_path}\" {extract_cmd} --allow-extra-chr --autosome "
+    cmd0 = f"\"{PLINK2}\" --bfile \"{bfile_path}\" {extract_cmd} --allow-extra-chr "
     cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
     out, err = call_bash_cmd(cmd)
     
@@ -57,7 +57,7 @@ def filter_ind(HET, het_mean: float, heta_std: float, HETER_SD: float, sample_li
     HET = np.abs((HET - het_mean ) / heta_std)
     # currently het is not filtered
     remove_idx = np.where(HET > HETER_SD)[0]
-    remove_list = sample_list[remove_idx]
+    remove_list = [ sample_list[i] for i in remove_idx ]
     
     return remove_list
 
@@ -82,7 +82,7 @@ def create_filtered_bed(
         for i in include_snp_list:
             FF.write(f"{i}\n")
 
-    cmd = f"\"{PLINK2}\" --allow-extra-chr --autosome  --rm-dup force-first "
+    cmd = f"\"{PLINK2}\" --allow-extra-chr  --rm-dup force-first  "
     rm_cmd = f"--keep \"{out_path}.ind_list\""
     out, err = call_bash_cmd(f"{cmd} --bfile \"{bfile_path}\" --mind {MIND_QC} --extract \"{out_path}.snp_list\" --out \"{out_path}\" --hardy --make-bed {rm_cmd}")
 

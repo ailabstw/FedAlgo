@@ -5,7 +5,9 @@ import logging
 import numpy as np
 from bed_reader import open_bed
 
-from .utils import rename_snp
+from .utils import rename_snp, AUTOSOME_LIST
+
+
 
 class GwasDataLoader():
     
@@ -93,14 +95,24 @@ class GwasDataLoader():
         fid_iid_list = list(zip(self.FAM.FID.values, self.FAM.IID.values))
         return fid_iid_list
 
-    def get_snp(self):
+    def get_snp(self, autosome_only = False):
         # need to reparse BIM.ID for inference of string type
-        SNP = self.BIM.ID.values.tolist()
+        if autosome_only:
+            BIM = self.BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)]
+            SNP = BIM.ID.values.tolist()
+        else:
+            SNP = self.BIM.ID.values.tolist()
+
         return np.array(SNP)
 
-    def get_old_snp(self):
+    def get_old_snp(self, autosome_only = False):
         assert self.rename_snp_flag
-        return self.BIM.Original_ID.values
+        if autosome_only:
+            BIM = self.BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)]
+            SNP = BIM.Original_ID.values.tolist()
+        else:
+            SNP = self.BIM.Original_ID.values.tolist()
+        return np.array(SNP)
 
     def get_allele(self):
         return self.BIM.A1.values, self.BIM.A2.values
