@@ -9,13 +9,14 @@ from gwasprs.utils import read_bim, read_fam, AUTOSOME_LIST
 
 logging.basicConfig(level=logging.DEBUG)
 
+data_path = os.path.dirname(os.path.realpath(__file__))+'/../data'
 
 class QcTestCase(unittest.TestCase):
     
     def setUp(self):
         #self.bed_path = "/mnt/prsdata/Test/Data/DEMO_REG/demo_hg38"
-        self.bed_path = "/volume/prsdata/Genotype/CLU/CLU_1659678698255"
-        self.output = "/yilun/test/gwasfl/qc"
+        self.bed_path = f"{data_path}/test_bfile/hapmap1_100_2"
+        self.output = "/tmp/qc"
         self.PLINK2 = "plink2"
         self.HET_BIN = 1000
         self.HET_RANGE = (-0.5, 0.5)
@@ -63,7 +64,7 @@ class QcTestCase(unittest.TestCase):
     
 
 # cd /yilun/CODE/fed-algo
-# python3 -m unittest test.test_qc.QcTestCase 
+# python3 -m unittest test.test_qc 
 
 # nosetests /yilun/CODE/fed-algo/test/main.py
 
