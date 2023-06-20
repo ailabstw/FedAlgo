@@ -17,3 +17,6 @@ def gen_mvdot(y: np.ndarray):
     
     return _mvdot
 
+@jit
+def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    return vmap(matmul, 2, 2)(X, Y)
