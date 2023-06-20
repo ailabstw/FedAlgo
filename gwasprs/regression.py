@@ -4,7 +4,8 @@ from typing import Any
 import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
-from .stats import gen_mvdot, mvdot, unnorm_autocovariance, unnorm_covariance
+from .linalg import gen_mvdot, mvdot
+from .stats import unnorm_autocovariance, unnorm_covariance
 
 
 class LinearSolver(object, metaclass=ABCMeta):
