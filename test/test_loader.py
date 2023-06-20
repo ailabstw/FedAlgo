@@ -9,11 +9,14 @@ from gwasprs.loader import GwasDataLoader, GwasSnpIterator
 
 logging.basicConfig(level=logging.DEBUG)
 
+data_path = os.path.dirname(os.path.realpath(__file__))+'/../data'
 
 class BedReaderTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.bed_path = "/mnt/prsdata/prs-data/Test/Data/DEMO_REG/demo_hg38"
+        self.bed_path = f"{data_path}/test_bfile/hapmap1_100_2"
+        #self.bed_path = "/mnt/prsdata/prs-data/Test/Data/DEMO_REG/demo_hg38"
+        #self.bed_path = "/volume/prsdata/Genotype/CLU/CLU_1659678698255"
 
     def tearDown(self):
         self.bed_path = None
@@ -39,7 +42,7 @@ class BedReaderTestCase(unittest.TestCase):
 
 
 # cd /yilun/CODE/fed-algo
-# python3 -m unittest test.test_io.BedReaderTestCase 
+# python3 -m unittest test.test_loader 
 
 # nosetests /yilun/CODE/fed-algo/test/main.py
 

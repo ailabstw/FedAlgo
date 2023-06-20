@@ -5,7 +5,9 @@ import logging
 import numpy as np
 from bed_reader import open_bed
 
-from .utils import rename_snp
+from .utils import rename_snp, AUTOSOME_LIST
+
+
 
 class GwasDataLoader():
     
@@ -93,14 +95,41 @@ class GwasDataLoader():
         fid_iid_list = list(zip(self.FAM.FID.values, self.FAM.IID.values))
         return fid_iid_list
 
-    def get_snp(self):
+    def get_snp(self, autosome_only = False):
         # need to reparse BIM.ID for inference of string type
-        SNP = self.BIM.ID.values.tolist()
+        if autosome_only:
+            BIM = self.BIM.loc[self.BIM.CHR.isin(AUTOSOME_LIST)]
+            SNP = BIM.ID.values.tolist()
+        else:
+            SNP = self.BIM.ID.values.tolist()
+
         return np.array(SNP)
 
-    def get_old_snp(self):
+    def get_old_snp(self, autosome_only = False):
         assert self.rename_snp_flag
-        return self.BIM.Original_ID.values
+        if autosome_only:
+            BIM = self.BIM.loc[self.BIM.CHR.isin(AUTOSOME_LIST)]
+            SNP = BIM.Original_ID.values.tolist()
+        else:
+            SNP = self.BIM.Original_ID.values.tolist()
+        return np.array(SNP)
+
+    def get_snp_table(self, autosome_only = True, dedup = True):
+        assert self.rename_snp_flag
+        snp_list_ori = self.get_snp(autosome_only=autosome_only) 
+        snp_list_old = self.get_old_snp(autosome_only=autosome_only)
+        # remove dup
+        if dedup:
+
+            snp_id_table = {}
+            snp_list = []
+            for i in range(len(snp_list_ori)):
+                snp = snp_list_ori[i]
+                if snp not in snp_id_table:
+                    snp_id_table[snp] = snp_list_old[i]
+                    snp_list.append(snp)
+
+        return np.array(snp_list), snp_id_table
 
     def get_allele(self):
         return self.BIM.A1.values, self.BIM.A2.values
