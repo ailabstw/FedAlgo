@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 
-def truncate(ss, limit = 5 ):
+def truncate(ss, limit = 23 ):
     ss = str(ss)
     if len(ss) > limit:
         ss = ss[:limit]

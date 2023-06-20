@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.DEBUG)
 class BedReaderTestCase(unittest.TestCase):
 
     def setUp(self):
-        #self.bed_path = "/mnt/prsdata/prs-data/Test/Data/DEMO_REG/demo_hg38"
-        self.bed_path = "/volume/prsdata/Genotype/CLU/CLU_1659678698255"
+        self.bed_path = "/mnt/prsdata/prs-data/Test/Data/DEMO_REG/demo_hg38"
+        #self.bed_path = "/volume/prsdata/Genotype/CLU/CLU_1659678698255"
 
     def tearDown(self):
         self.bed_path = None

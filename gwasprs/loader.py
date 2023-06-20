@@ -114,6 +114,23 @@ class GwasDataLoader():
             SNP = self.BIM.Original_ID.values.tolist()
         return np.array(SNP)
 
+    def get_snp_table(self, autosome_only = True, dedup = True):
+        assert self.rename_snp_flag
+        snp_list_ori = self.get_snp(autosome_only=autosome_only) 
+        snp_list_old = self.get_old_snp(autosome_only=autosome_only)
+        # remove dup
+        if dedup:
+
+            snp_id_table = {}
+            snp_list = []
+            for i in range(len(snp_list_ori)):
+                snp = snp_list_ori[i]
+                if snp not in snp_id_table:
+                    snp_id_table[snp] = snp_list_old[i]
+                    snp_list.append(snp)
+
+        return np.array(snp_list), snp_id_table
+
     def get_allele(self):
         return self.BIM.A1.values, self.BIM.A2.values
 
