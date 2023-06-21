@@ -1,10 +1,10 @@
 import unittest
-from test.test_linalg import MatmulTestCase
+from test.test_linalg import LinAlgTestCase
 from test.test_regression import LinearRegressionTestCase, LogisticRegressionTestCase
 from test.test_stats import CovarianceTestCase
 
 if __name__ == '__main__':
-    matmul_suite = unittest.TestLoader().loadTestsFromTestCase(MatmulTestCase)
+    matmul_suite = unittest.TestLoader().loadTestsFromTestCase(LinAlgTestCase)
     linear_suite = unittest.TestLoader().loadTestsFromTestCase(LinearRegressionTestCase)
     logist_suite = unittest.TestLoader().loadTestsFromTestCase(LogisticRegressionTestCase)
     cov_suite = unittest.TestLoader().loadTestsFromTestCase(CovarianceTestCase)

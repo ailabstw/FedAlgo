@@ -2,7 +2,7 @@ import unittest
 import gwasprs
 import numpy as np
 
-class MatmulTestCase(unittest.TestCase):
+class LinAlgTestCase(unittest.TestCase):
 
     def setUp(self):
         X = np.array(
@@ -16,12 +16,19 @@ class MatmulTestCase(unittest.TestCase):
              [[2], [2], [2]],
              [[3], [3], [3]]]
         )
+        y = np.array(
+            [[1],
+             [2],
+             [3]]
+        )
         self.X = np.concatenate((X, X), axis=2)
         self.Y = np.concatenate((Y, Y), axis=2)
+        self.y = np.concatenate((y, y), axis=1)
 
     def tearDown(self):
         self.X = None
         self.Y = None
+        self.y = None
 
     def test_batched_matmul(self):
         result = gwasprs.linalg.batched_matmul(self.X, self.Y)
@@ -38,5 +45,15 @@ class MatmulTestCase(unittest.TestCase):
              [[24, 24],
               [24, 24],
               [24, 24]]]
+        )
+        np.testing.assert_array_equal(ans, result)
+
+    def test_batched_mvdot(self):
+        result = gwasprs.linalg.batched_mvdot(self.X, self.y)
+        ans = np.array(
+            [[ 6,  6],
+             [12, 12],
+             [18, 18],
+             [24, 24]]
         )
         np.testing.assert_array_equal(ans, result)
