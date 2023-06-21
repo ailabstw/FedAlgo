@@ -57,3 +57,18 @@ class LinAlgTestCase(unittest.TestCase):
              [24, 24]]
         )
         np.testing.assert_array_equal(ans, result)
+
+    def test_batched_mmdot(self):
+        result = gwasprs.linalg.batched_mmdot(self.Y, self.Y)
+        ans = np.array(
+            [[[14, 14],
+              [14, 14],
+              [14, 14]],
+             [[14, 14],
+              [14, 14],
+              [14, 14]],
+             [[14, 14],
+              [14, 14],
+              [14, 14]],]
+        )
+        np.testing.assert_array_equal(ans, result)
