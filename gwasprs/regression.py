@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
-from .linalg import gen_mvdot, mvdot
+from .linalg import gen_mvmul, mvmul
 from .stats import unnorm_autocovariance, unnorm_covariance
 
 
@@ -19,7 +19,7 @@ class InverseSolver(LinearSolver):
     def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         inv_X = jnp.linalg.inv(X)
         # beta = X^-1 y
-        return mvdot(inv_X, y)
+        return mvmul(inv_X, y)
     
 class CholeskySolver(LinearSolver):
     def __init__(self) -> None:
@@ -90,7 +90,7 @@ class LinearRegression(LinearModel):
         return nobs - k
     
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        f = gen_mvdot(self.__beta)
+        f = gen_mvmul(self.__beta)
         return f(X)
 
     @classmethod
@@ -134,7 +134,7 @@ class LogisticRegression(LinearModel):
         return jnp.expand_dims(y, -1) - self.predict(X)
     
     def gradient(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        return mvdot(X.T, self.residual(X, y))
+        return mvmul(X.T, self.residual(X, y))
     
     def hessian(self, X: 'np.ndarray[(1, 1), np.floating]'):
         predicted_y = self.predict(X)

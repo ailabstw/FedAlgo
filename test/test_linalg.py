@@ -30,6 +30,16 @@ class LinAlgTestCase(unittest.TestCase):
         self.Y = None
         self.y = None
 
+    def test_batched_mvmul(self):
+        result = gwasprs.linalg.batched_mvmul(self.X, self.y)
+        ans = np.array(
+            [[ 6,  6],
+             [12, 12],
+             [18, 18],
+             [24, 24]]
+        )
+        np.testing.assert_array_equal(ans, result)
+
     def test_batched_matmul(self):
         result = gwasprs.linalg.batched_matmul(self.X, self.Y)
         ans = np.array(
@@ -49,12 +59,11 @@ class LinAlgTestCase(unittest.TestCase):
         np.testing.assert_array_equal(ans, result)
 
     def test_batched_mvdot(self):
-        result = gwasprs.linalg.batched_mvdot(self.X, self.y)
+        result = gwasprs.linalg.batched_mvdot(self.Y, self.y)
         ans = np.array(
-            [[ 6,  6],
-             [12, 12],
-             [18, 18],
-             [24, 24]]
+            [[14, 14],
+             [14, 14],
+             [14, 14],]
         )
         np.testing.assert_array_equal(ans, result)
 
