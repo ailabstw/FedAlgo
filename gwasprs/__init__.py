@@ -7,12 +7,16 @@ from .array import (
 from .mask import (
     get_mask, nonnan_count,
 )
+from .linalg import (
+    LinearSolver, InverseSolver, CholeskySolver, QRSolver,
+    BatchedInverseSolver, BatchedCholeskySolver,
+)
 from .stats import (
     unnorm_autocovariance, unnorm_covariance,
+    batched_unnorm_autocovariance, batched_unnorm_covariance,
 )
 from .regression import (
     LinearRegression, LogisticRegression,
-    LinearSolver, InverseSolver, CholeskySolver, QRSolver,
 )
 
 from .qc import (
