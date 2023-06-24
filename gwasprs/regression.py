@@ -79,6 +79,71 @@ class LinearRegression(LinearModel):
         return t_stat
 
 
+class BatchedLinearRegression(LinearModel):
+    """A class for linear regression for batched data
+
+    Args:
+        beta ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
+        XtX ('np.ndarray[(1, 1), np.floating]', optional): _description_. Defaults to None.
+        Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
+    """
+
+    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.BatchedCholeskySolver()) -> None:
+        if beta is None:
+            if XtX is None or Xty is None:
+                raise ValueError("Must provide XtX and Xty, since beta is not provided.")
+
+            if isinstance(algo, linalg.QRSolver):
+                raise ValueError("QRSolver is not supported in constructor.")
+
+            self.__beta = algo(XtX, Xty)
+        else:
+            self.__beta = beta
+
+    @property
+    def coef(self):
+        return self.__beta
+
+    def dof(self, nobs):
+        """Degrees of freedom
+
+        Args:
+            nobs (int, np.ndarray): Number of observations
+
+        Returns:
+            int: _description_
+        """
+        k = self.__beta.shape[0]
+        return nobs - k
+
+    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+        f = linalg.gen_mvmul(self.__beta)
+        return f(X)
+
+    @classmethod
+    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.BatchedCholeskySolver()):
+        if isinstance(algo, linalg.QRSolver):
+            raise ValueError("QRSolver is not supported.")
+
+        beta = algo(stats.batched_unnorm_autocovariance(X), stats.batched_unnorm_covariance(X, y))
+        return LinearRegression(beta = beta)
+
+    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+        return y - self.predict(X)
+
+    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+        res = self.residual(X, y)
+        return jnp.vdot(res.T, res)
+
+    def t_stats(self, sse, XtX, dof):
+        XtXinv = linalg.batched_inv(XtX)
+        sigma_squared = sse / dof
+        vars = (sigma_squared * XtXinv).diagonal()
+        std = jnp.sqrt(vars)
+        t_stat = self.coef / std
+        return t_stat
+
+
 class LogisticRegression(LinearModel):
     def __init__(self, beta = None) -> None:
         self.__beta = beta
