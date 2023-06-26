@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0]
+
+### Added
+
+- Add `batched_matmul`, `batched_mvdot`, `batched_mvdot`, `batched_mvmul`, `batched_inv`, `batched_cholesky`, `batched_solve_triangular`, `BatchedInverseSolver`, `BatchedCholeskySolver` to linalg.
+- Add `batched_unnorm_autocovariance`, `batched_unnorm_covariance` to stats.
+- Add `BatchedLinearRegression` to regression.
+- Add `isnonnan` to mask.
+
 ## [0.2.1]
 
 ### Added
