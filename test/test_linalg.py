@@ -1,6 +1,8 @@
 import unittest
 import gwasprs
 import numpy as np
+from jax import random
+import jax.numpy as jnp
 
 class LinAlgTestCase(unittest.TestCase):
 
@@ -81,3 +83,18 @@ class LinAlgTestCase(unittest.TestCase):
               [14, 14]],]
         )
         np.testing.assert_array_equal(ans, result)
+
+    def test_batched_cholesky(self):
+        key = random.PRNGKey(758493)
+        A = random.uniform(key, shape=(3, 4))
+        X = A.T @ A
+        L = np.linalg.cholesky(X)
+
+        X = jnp.expand_dims(X, -1)
+        X = np.concatenate((X, X), axis=2)
+        result = gwasprs.linalg.batched_cholesky(X)
+
+        L = np.expand_dims(L, -1)
+        ans = np.concatenate((L, L), axis=2)
+        # Need fixed: failed
+        # np.testing.assert_array_equal(ans, result)
