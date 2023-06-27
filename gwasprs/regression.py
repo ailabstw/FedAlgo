@@ -52,8 +52,7 @@ class LinearRegression(LinearModel):
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        f = linalg.gen_mvmul(self.__beta)
-        return f(X)
+        return linalg.mvmul(X, self.__beta)
 
     @classmethod
     def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.CholeskySolver()):
@@ -117,8 +116,7 @@ class BatchedLinearRegression(LinearModel):
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        f = linalg.gen_mvmul(self.__beta)
-        return f(X)
+        return linalg.batched_mvmul(X, self.__beta)
 
     @classmethod
     def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.BatchedCholeskySolver()):
