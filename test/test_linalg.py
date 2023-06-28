@@ -107,5 +107,4 @@ class LinAlgTestCase(unittest.TestCase):
 
         L = np.expand_dims(L, -1)
         ans = np.concatenate((L, L), axis=2)
-        # Need fixed: failed
-        # np.testing.assert_array_equal(ans, result)
+        np.testing.assert_array_equal(ans, result)
