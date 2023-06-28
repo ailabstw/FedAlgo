@@ -131,12 +131,12 @@ class BatchedLinearRegression(LinearModel):
 
     def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         res = self.residual(X, y)
-        return jnp.vdot(res.T, res)
+        return jnp.expand_dims(linalg.batched_vdot(res, res), 0)
 
     def t_stats(self, sse, XtX, dof):
         XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = sse / dof
-        vars = (sigma_squared * XtXinv).diagonal()
+        sigma_squared = sse / dof # bug
+        vars = linalg.batched_diagonal(sigma_squared * XtXinv)
         std = jnp.sqrt(vars)
         t_stat = self.coef / std
         return t_stat

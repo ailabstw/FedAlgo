@@ -72,6 +72,22 @@ def gen_mvmul(y: np.ndarray):
 
     return _mvmul
 
+
+def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Batched vector-vector dot product
+
+    Perform x.T * y with batch on their last dimension.
+
+    Args:
+        x (np.ndarray[(1, 1), np.floating]): Batched vector.
+        y (np.ndarray[(1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1, 1), np.floating]: Batched vector.
+    """
+    return jnp.sum(x * y, axis=0)
+
+
 @jit
 def batched_mvdot(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Batched matrix-vector dot product
@@ -131,6 +147,11 @@ def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
     """
     return vmap(matmul, 2, 2)(X, Y)
+
+
+@jit
+def batched_diagonal(X: np.ndarray) -> np.ndarray:
+    return vmap(jnp.diagonal, 2, 1)(X)
 
 
 @jit
