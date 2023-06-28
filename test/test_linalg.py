@@ -84,6 +84,17 @@ class LinAlgTestCase(unittest.TestCase):
         )
         np.testing.assert_array_equal(ans, result)
 
+    def test_batched_diagonal(self):
+        d = np.array([1,2,3])
+        D = np.diag(d)
+        D = np.expand_dims(D, -1)
+        D = np.concatenate((D, D), axis=2)
+        result = gwasprs.linalg.batched_diagonal(D)
+
+        d = np.expand_dims(d, -1)
+        ans = np.concatenate((d, d), axis=1)
+        np.testing.assert_array_equal(ans, result)
+
     def test_batched_cholesky(self):
         key = random.PRNGKey(758493)
         A = random.uniform(key, shape=(3, 4))

@@ -150,6 +150,11 @@ def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
 
 
 @jit
+def batched_diagonal(X: np.ndarray) -> np.ndarray:
+    return vmap(jnp.diagonal, 2, 1)(X)
+
+
+@jit
 def batched_inv(X: np.ndarray) -> np.ndarray:
     return vmap(jnp.linalg.inv, 2, 2)(X)
 
