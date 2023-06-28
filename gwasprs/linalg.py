@@ -159,9 +159,12 @@ def batched_inv(X: np.ndarray) -> np.ndarray:
     return vmap(jnp.linalg.inv, 2, 2)(X)
 
 
-@jit
 def batched_cholesky(X: np.ndarray) -> np.ndarray:
-    return vmap(jnp.linalg.cholesky, 2, 2)(X)
+    batch_size = X.shape[2]
+    L = np.empty(X.shape)
+    for b in range(batch_size):
+        L.view()[:, :, b] = np.linalg.cholesky(X[:, :, b])
+    return L
 
 
 @jit

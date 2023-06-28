@@ -135,7 +135,7 @@ class BatchedLinearRegression(LinearModel):
 
     def t_stats(self, sse, XtX, dof):
         XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = sse / dof # bug
+        sigma_squared = sse / dof
         vars = linalg.batched_diagonal(sigma_squared * XtXinv)
         std = jnp.sqrt(vars)
         t_stat = self.coef / std

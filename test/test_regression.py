@@ -121,3 +121,10 @@ class BatchedLinearRegressionTestCase(unittest.TestCase):
         resd = self.model.residual(self.X, self.y)
         ans = np.expand_dims(linalg.batched_vdot(resd, resd), 0)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
+
+    def test_t_stats(self):
+        sse = self.model.sse(self.X, self.y)
+        XtX = linalg.batched_mmdot(self.X, self.X)
+        dof = self.model.dof(gwasprs.mask.nonnan_count(self.X))
+        result = self.model.t_stats(sse, XtX, dof)
+        self.assertEqual((self.dim, self.batch_size), result.shape)
