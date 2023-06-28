@@ -1,12 +1,16 @@
 import unittest
 import gwasprs
 import numpy as np
+import scipy.linalg as slinalg
 from jax import random
 import jax.numpy as jnp
 
 class LinAlgTestCase(unittest.TestCase):
 
     def setUp(self):
+        key = random.PRNGKey(758493)
+        A = random.uniform(key, shape=(3, 4))
+        A = jnp.expand_dims(A.T @ A, -1)
         X = np.array(
             [[[1], [1], [1]],
              [[2], [2], [2]],
@@ -23,6 +27,7 @@ class LinAlgTestCase(unittest.TestCase):
              [2],
              [3]]
         )
+        self.A = np.concatenate((A, A), axis=2)
         self.X = np.concatenate((X, X), axis=2)
         self.Y = np.concatenate((Y, Y), axis=2)
         self.y = np.concatenate((y, y), axis=1)
@@ -96,15 +101,20 @@ class LinAlgTestCase(unittest.TestCase):
         np.testing.assert_array_equal(ans, result)
 
     def test_batched_cholesky(self):
-        key = random.PRNGKey(758493)
-        A = random.uniform(key, shape=(3, 4))
-        X = A.T @ A
-        L = np.linalg.cholesky(X)
-
-        X = jnp.expand_dims(X, -1)
-        X = np.concatenate((X, X), axis=2)
-        result = gwasprs.linalg.batched_cholesky(X)
+        L = np.linalg.cholesky(self.A[:, :, 0])
+        result = gwasprs.linalg.batched_cholesky(self.A)
 
         L = np.expand_dims(L, -1)
         ans = np.concatenate((L, L), axis=2)
         np.testing.assert_array_equal(ans, result)
+
+    def test_batched_cholesky_solver(self):
+        y = np.random.randn(4)
+        y = np.expand_dims(y, -1)
+        y = np.concatenate((y, y), axis=1)
+        result = gwasprs.linalg.BatchedCholeskySolver()(self.A, y)
+        ans = slinalg.solve(self.A[:, :, 0], y[:, 0])
+        ans = np.expand_dims(ans, -1)
+        ans = np.concatenate((ans, ans), axis=1)
+        norm = np.linalg.norm(result - ans)
+        np.testing.assert_approx_equal(0, norm)

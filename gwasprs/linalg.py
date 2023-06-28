@@ -168,8 +168,13 @@ def batched_cholesky(X: np.ndarray) -> np.ndarray:
 
 
 @jit
-def batched_solve_triangular(X: np.ndarray, y: np.ndarray, **kwargs) -> np.ndarray:
-    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, **kwargs), 2, 2)(X, y)
+def batched_solve_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (2, 1), 1)(X, y)
+
+
+@jit
+def batched_solve_trans_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (2, 1), 1)(X, y)
 
 
 class LinearSolver(object, metaclass=ABCMeta):
@@ -218,9 +223,9 @@ class BatchedCholeskySolver(LinearSolver):
         # L = Cholesky(X)
         L = batched_cholesky(X)
         # solve Lz = y
-        z = batched_solve_triangular(L, y, lower=True)
+        z = batched_solve_lower_triangular(L, y)
         # solve Lt beta = z
-        return batched_solve_triangular(L, z, trans="T", lower=True)
+        return batched_solve_trans_lower_triangular(L, z)
 
 
 class QRSolver(LinearSolver):
