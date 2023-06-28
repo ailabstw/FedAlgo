@@ -9,7 +9,7 @@ class LinAlgTestCase(unittest.TestCase):
 
     def setUp(self):
         key = random.PRNGKey(758493)
-        A = random.uniform(key, shape=(3, 4))
+        A = random.uniform(key, shape=(4, 4))
         A = jnp.expand_dims(A.T @ A, -1)
         X = np.array(
             [[[1], [1], [1]],
@@ -117,4 +117,4 @@ class LinAlgTestCase(unittest.TestCase):
         ans = np.expand_dims(ans, -1)
         ans = np.concatenate((ans, ans), axis=1)
         norm = np.linalg.norm(result - ans)
-        np.testing.assert_approx_equal(0, norm)
+        self.assertAlmostEqual(norm, 0, places=5)
