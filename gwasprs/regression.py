@@ -145,11 +145,11 @@ class BatchedLinearRegression(LinearModel):
         beta = algo(stats.batched_unnorm_autocovariance(X), stats.batched_unnorm_covariance(X, y))
         return LinearRegression(beta = beta)
 
-    def residual(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
-        return y - self.predict(X)
+    def residual(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
+        return y - self.predict(X, acceleration=acceleration)
 
-    def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
-        res = self.residual(X, y)
+    def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
+        res = self.residual(X, y, acceleration=acceleration)
         return jnp.expand_dims(linalg.batched_vdot(res, res), 0)
 
     def t_stats(self, sse, XtX, dof):
