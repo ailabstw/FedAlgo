@@ -1,8 +1,12 @@
-import subprocess 
+import subprocess
 import logging
 import os
 import pandas as pd
 import numpy as np
+import jax
+
+def jax_cpu_cores():
+    return len(jax.devices('cpu'))
 
 def truncate(ss, limit = 23 ):
     ss = str(ss)
@@ -13,13 +17,13 @@ def truncate(ss, limit = 23 ):
 
 AUTOSOME_LIST = [ i for i in range(1,22) ] + \
     [ str(i) for i in range(1,22) ] + \
-    [ f"chr{i}" for i in range(1,22) ] 
+    [ f"chr{i}" for i in range(1,22) ]
 
 def rename_snp(da, to_byte = True, to_dict = False):
     da = da.copy().reset_index(drop = True)
     snp_list = []
     for i in range(len(da.index)):
-        
+
         CHR = str(da.CHR[i])
         POS = str(da.POS[i])
         #SNP_ID = str(da.ID[i])
@@ -27,13 +31,13 @@ def rename_snp(da, to_byte = True, to_dict = False):
         A1 = truncate(da.A2[i])
         allele_list = [A0, A1]
         allele_list.sort()
-        
+
         snp = f"{CHR}:{POS}:" + allele_list[0] + ":" + allele_list[1]
         snp_list.append(snp)
-    
+
     if to_byte:
         snp_list = np.array(snp_list, dtype="S")
-        
+
     if to_dict:
         snp_list = dict(zip(snp_list, da.ID))
 
@@ -41,11 +45,11 @@ def rename_snp(da, to_byte = True, to_dict = False):
 
 
 def call_bash_cmd(command, *args, **kargs):
-    PopenObj = subprocess.Popen(command, 
-                        stdout = subprocess.PIPE, 
-                        stderr = subprocess.PIPE, 
+    PopenObj = subprocess.Popen(command,
+                        stdout = subprocess.PIPE,
+                        stderr = subprocess.PIPE,
                         preexec_fn = os.setsid,
-                        shell = True, 
+                        shell = True,
                         executable = "/bin/bash",
                         *args, **kargs)
     out, err = PopenObj.communicate()
