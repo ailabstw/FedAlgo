@@ -2,8 +2,9 @@ from abc import ABCMeta
 
 import numpy as np
 from jax import numpy as jnp
+from jax import pmap
 
-from . import linalg, stats
+from . import linalg, stats, utils
 
 
 class LinearModel(object, metaclass=ABCMeta):
@@ -112,24 +113,42 @@ class BatchedLinearRegression(LinearModel):
         Returns:
             int: _description_
         """
-        k = self.__beta.shape[0]
+        k = self.coef.shape[0]
         return nobs - k
 
-    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        return linalg.batched_mvmul(X, self.__beta)
+    def predict(self, X: 'np.ndarray[(1, 1, 1), np.floating]', acceleration="single"):
+        if acceleration == "single":
+            return linalg.batched_mvmul(X, self.coef)
+        elif acceleration == "pmap":
+            pmap_func = pmap(linalg.batched_mvmul, in_axes = (3, 2), out_axes = 2)
+            ncores = utils.jax_cpu_cores()
+            nsample, ndims, batch = X.shape
+            minibatch, remainder = divmod(batch, ncores)
+            A = np.reshape(X[:, :, :(minibatch*ncores)], (nsample, ndims, minibatch, ncores))
+            a = np.reshape(self.coef[:, :(minibatch*ncores)], (ndims, minibatch, ncores))
+            Y = np.reshape(pmap_func(A, a), (nsample, -1))
+
+            if remainder != 0:
+                B = X[:, :, (minibatch*ncores):]
+                b = self.coef[:, (minibatch*ncores):]
+                Z = linalg.batched_mvmul(B, b)
+                Y = np.concatenate((Y, Z), axis=1)
+            return Y
+        else:
+            raise ValueError(f"{acceleration} acceleration is not supported.")
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.BatchedCholeskySolver()):
+    def fit(cls, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', algo=linalg.BatchedCholeskySolver()):
         if isinstance(algo, linalg.QRSolver):
             raise ValueError("QRSolver is not supported.")
 
         beta = algo(stats.batched_unnorm_autocovariance(X), stats.batched_unnorm_covariance(X, y))
         return LinearRegression(beta = beta)
 
-    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def residual(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
         return y - self.predict(X)
 
-    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
         res = self.residual(X, y)
         return jnp.expand_dims(linalg.batched_vdot(res, res), 0)
 
