@@ -26,10 +26,12 @@ class BedReaderTestCase(unittest.TestCase):
         gwas_data_loader = GwasDataLoader(self.bed_path)
         gwas_data_loader.read_in()
         BED = gwas_data_loader.get_geno()
-        
+        COV = gwas_data_loader.get_cov()
+
         idx_list = np.s_[2:32,5:20]
         GT = BED.read(index=idx_list)
-        logging.info( GT.shape)
+        logging.info( GT.shape )
+        logging.info( COV.shape )
 
     def test_iterator(self):
 

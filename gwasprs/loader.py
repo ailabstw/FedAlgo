@@ -135,12 +135,18 @@ class GwasDataLoader():
         return self.BIM.A1.values, self.BIM.A2.values
 
     def get_cov(self, add_bias_flag = True):
+        ll = len(self.FAM.FID.values)
+        
         COV = None
-        if os.path.exists(self.cov_path):
+        if os.path.exists(str(self.cov_path)):
             COV = self.COV.iloc[:,2:].values 
             if add_bias_flag:
-                BIAS = np.ones((COV.shape[0],1), dtype = COV.dtype)
+                BIAS = np.ones((ll,1), dtype = COV.dtype)
                 COV = np.concatenate(( BIAS, COV), axis=1)
+        else:
+            if add_bias_flag:
+                COV = np.ones((ll,1), dtype = np.float32)
+
         return COV
 
 
@@ -368,7 +374,7 @@ class GwasSnpIterator():
         BIM.loc[:,"INDEX"] = BIM.index
         BIM = BIM.reset_index(drop = True)
         # get swap idx
-        BIM.loc[:,"SWAP"] = self.BIM.A1 > self.BIM.A2
+        BIM.loc[:,"SWAP"] = BIM.A1 > BIM.A2
         
         # swap bim
         BIM.loc[:,"TMP"]  = BIM.A1
