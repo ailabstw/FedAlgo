@@ -272,12 +272,26 @@ class GwasDataLoader():
     def _check_pheno_missing(self):
         rm_count = 0
         bad_ind_idx = set()
+        
         if self.COV is not None:
             bad_ind_idx0 = self.COV.loc[self.COV.isnull().any(axis=1)].index
+            bad_ind_idx1 = self.COV.loc[(self.COV == -9 ).any(axis=1)| \
+                (self.COV == -9.0 ).any(axis=1)].index
+            if len(bad_ind_idx1) > 0:
+                logging.warning(f"-9 is found in cov column, which may be ambiguous in quantitative covariate. \
+                    Suggested to change it as NaN. We will regard it as missing for now")
+                bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
+
             rm_count += len(bad_ind_idx0)
             bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
         
         bad_ind_idx0 = self.FAM.loc[self.FAM.PHENO1.isnull()].index
+        bad_ind_idx1 = self.FAM.loc[(self.FAM.PHENO1 == -9 )| (self.FAM.PHENO1 == -9.0 )].index
+        if len(bad_ind_idx1) > 0:
+            logging.warning(f"-9 is found in fam PHENO column, which may be ambiguous in quantitative pheno. \
+                Suggested to change it as NaN. We will regard it as missing for now")
+            bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
+
         rm_count += len(bad_ind_idx0)
         bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
         logging.warning(f"{rm_count} individuals to be remove due to missing value in pheno or covaraite")
