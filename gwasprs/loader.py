@@ -153,7 +153,7 @@ class GwasDataLoader():
     ####### HELPERS #######
     def _read_bed(self):
         BED = open_bed(f"{self.bed_path}.bed")
-        logging.info(f"BED file: {self.bed_path}")
+        logging.info(f"BED file: {self.bed_path}.bed")
         return BED
 
     def _read_fam(self):

@@ -26,12 +26,12 @@ def cal_qc_client(
                 FF.write(f"{i}\n")
         extract_cmd = f"--extract \"{out_path}.common_snp_list\""
         
-    cmd0 = f"\"{PLINK2}\" --bfile \"{bfile_path}\" {extract_cmd} --allow-extra-chr "
+    cmd0 = f"\"{PLINK2}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
     cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
     out, err = call_bash_cmd(cmd)
     
     # read-freq for sample size < 50
-    cmd = f"{cmd0} --out \"{out_path}\" --het --read-freq \"{out_path}.afreq\" "
+    cmd = f"{cmd0} --out \"{out_path}\"  --het --read-freq \"{out_path}.afreq\" "
     out, err = call_bash_cmd(cmd)
 
     ALLELE_COUNT = read_hardy(out_path)
