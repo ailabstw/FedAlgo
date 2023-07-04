@@ -34,6 +34,8 @@ stages:
   script:
     - chmod +x ./scripts/compile_plink_hwp.sh
     - ./scripts/compile_plink_hwp.sh
+    - chmod +x ./scripts/install_plink2.sh
+    - ./scripts/install_plink2.sh
     - pip install pytest
     - pytest
 
