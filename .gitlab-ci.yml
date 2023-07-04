@@ -32,10 +32,10 @@ stages:
 .test:
   coverage: /Test coverage (\d+\.\d+%)/
   script:
-    - chmod +x ./scripts/compile_plink_hwp.sh 
-    - ./scripts/compile_plink_hwp.sh 
-    - pip install nose
-    - nosetests test/main.py
+    - chmod +x ./scripts/compile_plink_hwp.sh
+    - ./scripts/compile_plink_hwp.sh
+    - pip install pytest
+    - pytest
 
 .build:
   script:
@@ -57,11 +57,13 @@ test-develop:
     - .test
   parallel:
     matrix:
-      - PYTHON: 
+      - PYTHON:
         - python:3.7
         - python:3.8
         - python:3.9
-  
+        - python:3.10
+        - python:3.11
+
 build-develop:
   image: ${PYTHON}
   stage: build
@@ -72,10 +74,12 @@ build-develop:
     - .build
   parallel:
     matrix:
-      - PYTHON: 
+      - PYTHON:
         - python:3.7
         - python:3.8
         - python:3.9
+        - python:3.10
+        - python:3.11
 
 build-environment:
   stage: build
@@ -95,10 +99,12 @@ test-production:
     - .test
   parallel:
     matrix:
-      - PYTHON: 
+      - PYTHON:
         - python:3.7
         - python:3.8
         - python:3.9
+        - python:3.10
+        - python:3.11
 
 deploy-production:
   image: ${PYTHON}
@@ -111,7 +117,9 @@ deploy-production:
     - .deploy
   parallel:
     matrix:
-      - PYTHON: 
+      - PYTHON:
         - python:3.7
         - python:3.8
         - python:3.9
+        - python:3.10
+        - python:3.11
