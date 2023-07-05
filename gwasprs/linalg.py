@@ -179,6 +179,11 @@ def batched_cholesky(X: np.ndarray) -> np.ndarray:
 
 
 @jit
+def batched_solve(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return vmap(jsp.linalg.solve, (2, 1), 1)(X, y)
+
+
+@jit
 def batched_solve_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (2, 1), 1)(X, y)
 
@@ -198,9 +203,8 @@ class InverseSolver(LinearSolver):
         super().__init__()
 
     def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        inv_X = jnp.linalg.inv(X)
-        # beta = X^-1 y
-        return mvmul(inv_X, y)
+        # solve beta for X @ beta = y
+        return jnp.linalg.solve(X, y)
 
 
 class BatchedInverseSolver(LinearSolver):
@@ -208,9 +212,8 @@ class BatchedInverseSolver(LinearSolver):
         super().__init__()
 
     def __call__(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
-        inv_X = batched_inv(X)
-        # beta = X^-1 y
-        return batched_mvmul(inv_X, y)
+        # solve beta for X @ beta = y
+        return batched_solve(X, y)
 
 
 class CholeskySolver(LinearSolver):
