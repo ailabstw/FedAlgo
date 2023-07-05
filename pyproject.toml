@@ -7,7 +7,7 @@ name = "gwasprs"
 version = "0.5.4"
 
 authors = [
-    { name="Yueh-Hua Tu", email="yuehhua.tu@ailabs.com" },
+    { name="Yueh-Hua Tu", email="yuehhua.tu@ailabs.tw" },
     { name="Yi-Lun Lee", email="yilun.lee@ailabs.tw" },
 ]
 

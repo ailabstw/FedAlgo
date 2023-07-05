@@ -6,9 +6,17 @@ Execute following command with network connection to AI Labs.
 
 `pip install gwasprs --index-url https://gitlab-ci-token:fz91zDTrZV-1T1ysa2tv@gitlab.corp.ailabs.tw/api/v4/projects/3247/packages/pypi/simple`
 
-## Compile
+## Compilation
 
-Execute scripts in `scripts` to compile external programs.
+To support functionalities from plink, we should compile source files and install executable binaries.
+
+### Manual
+
+Execute scripts in `scripts` to compile external programs and install executables.
+
+### Automatic
+
+Automatic compilation and installation are recorded in `.gitlab-ci.yml` for CI and `setup.py` for packaging.
 
 ## Development information
 

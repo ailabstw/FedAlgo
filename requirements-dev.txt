@@ -1,0 +1,11 @@
+# environment management tool
+virtualenv
+# test framework
+pytest
+# documentation generator
+sphinx
+myst-parser
+# packaging tool
+build
+# publishing tool
+twine
