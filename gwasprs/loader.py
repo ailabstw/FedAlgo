@@ -135,19 +135,25 @@ class GwasDataLoader():
         return self.BIM.A1.values, self.BIM.A2.values
 
     def get_cov(self, add_bias_flag = True):
+        ll = len(self.FAM.FID.values)
+        
         COV = None
-        if os.path.exists(self.cov_path):
+        if os.path.exists(str(self.cov_path)):
             COV = self.COV.iloc[:,2:].values 
             if add_bias_flag:
-                BIAS = np.ones((COV.shape[0],1), dtype = COV.dtype)
+                BIAS = np.ones((ll,1), dtype = COV.dtype)
                 COV = np.concatenate(( BIAS, COV), axis=1)
+        else:
+            if add_bias_flag:
+                COV = np.ones((ll,1), dtype = np.float32)
+
         return COV
 
 
     ####### HELPERS #######
     def _read_bed(self):
         BED = open_bed(f"{self.bed_path}.bed")
-        logging.info(f"BED file: {self.bed_path}")
+        logging.info(f"BED file: {self.bed_path}.bed")
         return BED
 
     def _read_fam(self):
@@ -162,8 +168,8 @@ class GwasDataLoader():
     def _read_bim(self):
         BIM = pd.read_csv(f"{self.bed_path}.bim", sep = '\s+', header = None)
         BIM.columns = ["CHR","ID","cM","POS","A1","A2"]
-        BIM.A1 = BIM.A1.astype(str)
-        BIM.A2 = BIM.A2.astype(str)
+        BIM.A1 = BIM.A1.astype(str).replace("0",".")
+        BIM.A2 = BIM.A2.astype(str).replace("0",".")
         BIM.ID = BIM.ID.astype(str)
         logging.debug(f"BIM file: {self.bed_path}.bim")
         self.raw_snp_num = len(BIM.index)
@@ -266,12 +272,26 @@ class GwasDataLoader():
     def _check_pheno_missing(self):
         rm_count = 0
         bad_ind_idx = set()
+        
         if self.COV is not None:
             bad_ind_idx0 = self.COV.loc[self.COV.isnull().any(axis=1)].index
+            bad_ind_idx1 = self.COV.loc[(self.COV == -9 ).any(axis=1)| \
+                (self.COV == -9.0 ).any(axis=1)].index
+            if len(bad_ind_idx1) > 0:
+                logging.warning(f"-9 is found in cov column, which may be ambiguous in quantitative covariate. \
+                    Suggested to change it as NaN. We will regard it as missing for now")
+                bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
+
             rm_count += len(bad_ind_idx0)
             bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
         
         bad_ind_idx0 = self.FAM.loc[self.FAM.PHENO1.isnull()].index
+        bad_ind_idx1 = self.FAM.loc[(self.FAM.PHENO1 == -9 )| (self.FAM.PHENO1 == -9.0 )].index
+        if len(bad_ind_idx1) > 0:
+            logging.warning(f"-9 is found in fam PHENO column, which may be ambiguous in quantitative pheno. \
+                Suggested to change it as NaN. We will regard it as missing for now")
+            bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
+
         rm_count += len(bad_ind_idx0)
         bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
         logging.warning(f"{rm_count} individuals to be remove due to missing value in pheno or covaraite")
@@ -368,7 +388,7 @@ class GwasSnpIterator():
         BIM.loc[:,"INDEX"] = BIM.index
         BIM = BIM.reset_index(drop = True)
         # get swap idx
-        BIM.loc[:,"SWAP"] = self.BIM.A1 > self.BIM.A2
+        BIM.loc[:,"SWAP"] = BIM.A1 > BIM.A2
         
         # swap bim
         BIM.loc[:,"TMP"]  = BIM.A1
