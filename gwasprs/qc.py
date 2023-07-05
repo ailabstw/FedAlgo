@@ -28,7 +28,7 @@ def cal_qc_client(
                 FF.write(f"{i}\n")
         extract_cmd = f"--extract \"{out_path}.common_snp_list\""
         
-    cmd0 = f"\"{PLINK2}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
+    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
     cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
     out, err = call_bash_cmd(cmd)
 
