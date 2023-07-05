@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.2]
+
+### Fixed
+
+- swap in loader, remove self before BIM.
+- add `--rm-dup 'force-first'` in qc stat calculation to deal with duplication problem
+- chromosome name is set to `1..22` instead of `1..21`
+- Some minor text adjustment
+- (Batched)InverseSolver solve linear system bypassing inverse matrix
+
+
 ## [0.5.1]
 
 ### Fixed
