@@ -168,8 +168,8 @@ class GwasDataLoader():
     def _read_bim(self):
         BIM = pd.read_csv(f"{self.bed_path}.bim", sep = '\s+', header = None)
         BIM.columns = ["CHR","ID","cM","POS","A1","A2"]
-        BIM.A1 = BIM.A1.astype(str)
-        BIM.A2 = BIM.A2.astype(str)
+        BIM.A1 = BIM.A1.astype(str).replace("0",".")
+        BIM.A2 = BIM.A2.astype(str).replace("0",".")
         BIM.ID = BIM.ID.astype(str)
         logging.debug(f"BIM file: {self.bed_path}.bim")
         self.raw_snp_num = len(BIM.index)
