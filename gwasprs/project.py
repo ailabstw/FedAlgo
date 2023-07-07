@@ -2,12 +2,12 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 import logging
 
-import stats, linalg, vectorize
+from . import stats, linalg, vectorize
 
 # Aggregator
 
 ## gram_schmidt
-    
+
 def init_gram_schmidt(norms):
     """
     original federated_gram_schmidt_init_step
@@ -48,7 +48,7 @@ def compute_residuals_step(Ortho, G, eigen_idx, norms):
         r = vectorize.fast_dot(u, v)/norms[res_idx]
 
         residuals.append(r)
-    
+
     return residuals
 
 def orthogonalize_step(G, Ortho, eigen_idx, residuals):
@@ -60,4 +60,3 @@ def normalize_step(norms, Ortho):
     G = stats.normalize(norms, Ortho)
     logging.debug(f'G matrix {G.shape}\n{G}')
     return G
-    
