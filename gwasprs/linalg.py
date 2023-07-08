@@ -270,8 +270,8 @@ def svd_cov_matrix(cov_matrices):
     U, S, Vt = jsp.linalg.svd(cov_matrix, full_matrices=False)
     return U
 
-def randn(n, m):
-    return jrand.normal(key=jrand.PRNGKey(42), shape=(n, m))
+def randn(n, m, seed=42):
+    return jrand.normal(key=jrand.PRNGKey(seed), shape=(n, m))
 
 
 def check_eigenvector_convergence(current, previous, tolerance, required=None):
@@ -490,7 +490,6 @@ def decompose_cov_matrices(cov_matrices, k):
     original calculate_cov_matrices_step in aggregator
     """
     U = svd_cov_matrix(cov_matrices)[:, :k]
-    logging.info(f'After SVD, U matrix: {U.shape}')
     return U
 
 
@@ -498,11 +497,10 @@ def local_G_and_init_orthonormalization(P, U):
     """
     original compute_local_G_step
     """
-    G = vectorize.fast_dot(P.T, U)
+    G = mmdot(P, U)
 
     # Orthonormalization initialize
     ortho = [G[:, 0]]
-    logging.debug(f'First eigenvector: {ortho[0].shape}\n{ortho[0]}')
 
-    return vectorize.fast_dot(G[:,0], G[:,0]), ortho
+    return G, jnp.vdot(G[:,0],G[:,0]), ortho
 

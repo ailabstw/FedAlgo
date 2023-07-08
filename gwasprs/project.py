@@ -2,7 +2,7 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 import logging
 
-import stats, linalg, vectorize
+from . import stats, linalg, vectorize
 
 # Aggregator
 
@@ -40,24 +40,22 @@ def update_H(h_matrices):
 
 ## gram_schmidt
 
-def compute_residuals_step(Ortho, G, eigen_idx, norms):
+def compute_residuals_step(G, Ortho, eigen_idx, norms):
     residuals = []
     for res_idx in range(eigen_idx):
         u = Ortho[res_idx]
         v = G[:,eigen_idx]
-        r = vectorize.fast_dot(u, v)/norms[res_idx]
-
+        r = jnp.vdot(u,v)/norms[res_idx]
         residuals.append(r)
     
     return residuals
 
 def orthogonalize_step(G, Ortho, eigen_idx, residuals):
-        u = linalg.orthogonal_project(G[:,eigen_idx], Ortho, residuals)
-        Ortho.append(u)
-        return vectorize.fast_dot(u, u)
+    u = linalg.orthogonal_project(G[:,eigen_idx], Ortho, residuals)
+    Ortho.append(u)
+    return jnp.vdot(u,u)
 
 def normalize_step(norms, Ortho):
     G = stats.normalize(norms, Ortho)
-    logging.debug(f'G matrix {G.shape}\n{G}')
     return G
     

@@ -4,6 +4,7 @@ import numpy as np
 import scipy.linalg as slinalg
 from jax import random
 import jax.numpy as jnp
+import jax.scipy as jsp
 
 class LinAlgTestCase(unittest.TestCase):
 
@@ -32,10 +33,16 @@ class LinAlgTestCase(unittest.TestCase):
         self.Y = np.concatenate((Y, Y), axis=2)
         self.y = np.concatenate((y, y), axis=1)
 
+        # For PCA/SVD testing
+        G, R = gwasprs.array.simulate_eigenvectors(30, 21)
+        self.Ps = [G[i*7:(i+1)*7, :] for i in range(3)]
+        self.U = R
+
     def tearDown(self):
         self.X = None
         self.Y = None
         self.y = None
+        self.Ps, self.U = None, None
 
     def test_batched_mvmul(self):
         result = gwasprs.linalg.batched_mvmul(self.X, self.y)
@@ -118,3 +125,28 @@ class LinAlgTestCase(unittest.TestCase):
         ans = np.concatenate((ans, ans), axis=1)
         norm = np.linalg.norm(result - ans)
         self.assertAlmostEqual(norm, 0, places=5)
+
+    def test_federated_gram_schmidt_orthonormalization(self):
+        Gs = [gwasprs.linalg.mmdot(p.T, self.U) for p in self.Ps]
+        G = np.concatenate(Gs, axis=0)
+        ans, R = jsp.linalg.qr(G, mode='economic')
+        
+        # First eigenvector
+        Gs, norms, orthos = [], [], []
+        for p in self.Ps:
+            g, norm, ortho = gwasprs.linalg.local_G_and_init_orthonormalization(p.T, self.U)
+            Gs.append(g)
+            norms.append(norm)
+            orthos.append(ortho)
+        NORMS = gwasprs.project.init_gram_schmidt(norms)
+
+        # Rest
+        for EIGEN_IDX in range(1,self.U.shape[1]):
+            residuals = [gwasprs.project.compute_residuals_step(Gs[i], orthos[i], EIGEN_IDX, NORMS) for i in range(len(Gs))]
+            RESIDUALS = gwasprs.project.residuals(residuals)
+            norms = [gwasprs.project.orthogonalize_step(Gs[i], orthos[i], EIGEN_IDX, RESIDUALS) for i in range(len(Gs))]
+            NORMS.append(gwasprs.project.aggregate_norms(norms))
+        result = np.concatenate([gwasprs.project.normalize_step(NORMS, orthos[i]) for i in range(len(Gs))], axis=0)
+
+        INNER_PRODUCTS = gwasprs.linalg.mmdot(ans, result)
+        np.testing.assert_array_almost_equal(np.identity(INNER_PRODUCTS.shape[0]), abs(INNER_PRODUCTS), decimal=5)
