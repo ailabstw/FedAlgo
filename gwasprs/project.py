@@ -2,7 +2,7 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 import logging
 
-from . import stats, linalg, vectorize
+from . import stats, linalg
 
 # Aggregator
 

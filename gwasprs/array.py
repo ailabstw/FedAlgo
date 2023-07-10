@@ -21,12 +21,12 @@ def simulate_genotype_matrix(key, shape=(10,30), r_mask=0.9, c_mask=0.9, impute=
     if impute:
         col_mean = np.nanmean(X, axis=0)
         inds = np.where(np.isnan(X))
-        X[inds] = np.take(col_mean, inds[1])
+        X = X.at[inds].set(np.take(col_mean, inds[1]))
 
     if standardize:
-        X = (X-np.mean(X, axis=0))/np.nanstd(X, axis=0, ddof=1)
-        X = np.delete(X, np.isnan(X[0]), axis=1)
-        
+        X = (X-jnp.mean(X, axis=0))/jnp.nanstd(X, axis=0, ddof=1)
+        X = jnp.delete(X, jnp.isnan(X[0]), axis=1)
+
     return X
 
 def _subspace_iteration(A, G):

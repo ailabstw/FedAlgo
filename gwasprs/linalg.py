@@ -8,8 +8,6 @@ from jax import scipy as jsp
 from jax import random as jrand
 import logging
 
-from . import vectorize
-
 
 def nansum(A):
     snp_sum = jnp.nansum(A, axis=0)
@@ -306,111 +304,10 @@ def check_eigenvector_convergence(current, previous, tolerance, required=None):
         col = col + 1
     return converged, deltas
 
-
-def federated_svd(A, threshold, epsilon = 1e-9, max_iter = 15):
-    current_iter = 1
-    H_converged = False
-    Hs = []
-    P, A = local_svd_approximation(A, threshold)
-    V = aggregate_svd_approximation([P], k1)
-    G = init_G(A, V)
-    prev_H = init_H(m, n)
-    prev_H = update_local_H(A, G)
-
-    while not H_converged and current_iter < max_iter:
-        H = update_global_H(Hs)
-        H_converged, delta_H = check_eigenvector_convergence(H, prev_H, epsilon)
-        logging.debug(f'H converged status: {H_converged}')
-        Hs.append(H)
-
-        G = update_local_G(A, H)
-
-        current_iter += 1
-
-    H = decompose_H_stack(Hs)
-    cov_matrix = local_cov_matrix(A, H)
-    U = decompose_cov_matrices([cov_matrix], k2)
-    norm = local_G_and_init_orthonormalization(P, U)
-
-
-def local_svd_approximation(A, threshold):
-    """
-    Args:
-        A (_type_): _description_
-        threshold (_type_): threshold for preservation.
-    """
-    U, S, Vt = svd(A)
-    V = Vt.T
-    logging.debug(f'G matrix {V.shape}\n{V}')
-
-    # determine information preserving level
-    var = jnp.square(S)
-    total_var = jnp.sum(var)
-    var_sum, nd = 0, 0
-    for i in range(len(var)):
-        var_sum += var[i]
-        pres_var = var_sum / total_var
-        if pres_var > threshold:
-            nd = i+1
-            logging.debug(f'Preserved information ratio {pres_var}')
-            break
-
-    # Create reshaped diagnoal sigma matrix
-    R = jnp.diag(S)[:nd,:nd]
-
-    Vr = V[:, :nd]
-    P = vectorize.fast_dot(jnp.sqrt(R), Vr.T)  # sqrt?
-
-    # Transpose A for the next step > n_SNPs * n_samples
-    logging.debug(f'Transpose A matrix >> n_SNPs * n_samples')
-    A = A.T
-
-    return P, A
-
-
-def aggregate_svd_approximation(p_matrices, k1):
-    """
-    Algo4/3-5
-    Perform SVD on matrices containing partial information of A
-
-    original svd_approximation_step
-
-    Args:
-        p_matrices
-            a list contains H matrices (A*G) with shape (k1, n_SNPs)
-    Return:
-        v_matrix
-            an approximative matrix (H hat) lets clients get approximative local G
-    """
-
-    # P shape: (k1*n_clients, n_SNPs)
-    P_matrix = jnp.concatenate(p_matrices,axis=0)
-    logging.debug(f'After concat P matrix: {P_matrix.shape}\n{P_matrix}')
-
-    # V shape: (n_SNPs, k1)
-    if k1 < 120:
-        logging.debug(f'Performing sparse SVD...')
-        U, S, v_matrix = slinalg.svds(np.array(P_matrix), k=k1)
-        v_matrix = jnp.array(v_matrix.T)
-    else:
-        logging.debug(f'Performing dense SVD...')
-        U, S, v_matrix = svd(P_matrix)
-        v_matrix = v_matrix.T
-        nd = min(k1, U.shape[0], v_matrix.shape[0])
-        v_matrix = v_matrix[:, :nd]
-
-    logging.debug(f'V matrix: {v_matrix.shape}\n{v_matrix}')
-
-    return v_matrix
-
-
-def init_G(A, H):
-    """
-    original randomized_svd_init_step in client
-    """
-    # Get init G from approximate H (V_MATRIX)
-    G = vectorize.fast_dot(A.T, H)
-    return G
+def iteration_update(current_H, Hs, current_iteration, max_iterations):
+    if current_iteration < max_iterations:
+        Hs.append(current_H)
+    return current_H, Hs, current_iteration+1
 
 
 def init_H(m, n):
@@ -425,7 +322,7 @@ def update_local_H(A, G):
     """
     original update_H_step in client
     """
-    H = vectorize.fast_dot(A, G)
+    H = mmdot(A.T, G)
     return H
 
 
@@ -445,17 +342,17 @@ def update_global_H(Hs):
     """
     # H shape: (n_SNPs, k)
     H = jnp.sum(jnp.asarray(Hs),axis=0)
-    Q, R = jsp.linalg.qr(H, mode='economic')
-    logging.debug(f'After H orthonormalization: {H.shape}')
+    H, R = jsp.linalg.qr(H, mode='economic')
 
-    return Q
+    return H
 
 
 def update_local_G(A, H):
     """
     original update_G_step in client
     """
-    G = vectorize.fast_dot(A.T, H)
+    # G = vectorize.fast_dot(A.T, H)
+    G = mmdot(A, H)
     return G
 
 
@@ -465,7 +362,8 @@ def decompose_H_stack(Hs):
     """
     Hs = jnp.asarray(jnp.concatenate(Hs, axis=1))
     H, S, G = svd(Hs)
-    logging.debug(f'After SVD, H matrix: {H.shape}')
+    print(f'H stack shape: {Hs.shape}')
+    print(f'H shape: {H.shape}')
 
     return H[:, :Hs.shape[1]-1]
 
@@ -475,14 +373,13 @@ def local_cov_matrix(A, H):
     original calculate_cov_matrices_step in client
     """
     # P corresponds to A hat
-    P = vectorize.fast_dot(H.T, A)
-    logging.debug(f'P matrix {P.shape}\n{P}')
+    P = mmdot(H, A)
 
     # cov_matrix corresponds to M hat
-    cov_matrix = vectorize.fast_dot(P, P.T)
-    logging.debug(f'Covariance matrix {cov_matrix.shape}\n{cov_matrix}')
-
-    return cov_matrix
+    cov_matrix = mmdot(P.T, P.T)
+    print(f'P shape: {P.shape}')
+    print(f'cov shape: {cov_matrix.shape}')
+    return P, cov_matrix
 
 
 def decompose_cov_matrices(cov_matrices, k):
@@ -490,6 +387,7 @@ def decompose_cov_matrices(cov_matrices, k):
     original calculate_cov_matrices_step in aggregator
     """
     U = svd_cov_matrix(cov_matrices)[:, :k]
+    print(f'U shape: {U.shape}')
     return U
 
 
@@ -497,6 +395,9 @@ def local_G_and_init_orthonormalization(P, U):
     """
     original compute_local_G_step
     """
+    print('HERE')
+    print(f'P shape: {P.shape}')
+    print(f'U shape: {U.shape}')
     G = mmdot(P, U)
 
     # Orthonormalization initialize
@@ -504,3 +405,108 @@ def local_G_and_init_orthonormalization(P, U):
 
     return G, jnp.vdot(G[:,0],G[:,0]), ortho
 
+
+# def federated_svd(A, threshold, epsilon = 1e-9, max_iter = 15):
+#     current_iter = 1
+#     H_converged = False
+#     Hs = []
+#     P, A = local_svd_approximation(A, threshold)
+#     V = aggregate_svd_approximation([P], k1)
+#     G = init_G(A, V)
+#     prev_H = init_H(m, n)
+#     prev_H = update_local_H(A, G)
+
+#     while not H_converged and current_iter < max_iter:
+#         H = update_global_H(Hs)
+#         H_converged, delta_H = check_eigenvector_convergence(H, prev_H, epsilon)
+#         logging.debug(f'H converged status: {H_converged}')
+#         Hs.append(H)
+
+#         G = update_local_G(A, H)
+
+#         current_iter += 1
+
+#     H = decompose_H_stack(Hs)
+#     cov_matrix = local_cov_matrix(A, H)
+#     U = decompose_cov_matrices([cov_matrix], k2)
+#     norm = local_G_and_init_orthonormalization(P, U)
+
+
+# def local_svd_approximation(A, threshold):
+#     """
+#     Args:
+#         A (_type_): _description_
+#         threshold (_type_): threshold for preservation.
+#     """
+#     U, S, Vt = svd(A)
+#     V = Vt.T
+#     logging.debug(f'G matrix {V.shape}\n{V}')
+
+#     # determine information preserving level
+#     var = jnp.square(S)
+#     total_var = jnp.sum(var)
+#     var_sum, nd = 0, 0
+#     for i in range(len(var)):
+#         var_sum += var[i]
+#         pres_var = var_sum / total_var
+#         if pres_var > threshold:
+#             nd = i+1
+#             logging.debug(f'Preserved information ratio {pres_var}')
+#             break
+
+#     # Create reshaped diagnoal sigma matrix
+#     R = jnp.diag(S)[:nd,:nd]
+
+#     Vr = V[:, :nd]
+#     P = vectorize.fast_dot(jnp.sqrt(R), Vr.T)  # sqrt?
+
+#     # Transpose A for the next step > n_SNPs * n_samples
+#     logging.debug(f'Transpose A matrix >> n_SNPs * n_samples')
+#     A = A.T
+
+#     return P, A
+
+
+# def aggregate_svd_approximation(p_matrices, k1):
+#     """
+#     Algo4/3-5
+#     Perform SVD on matrices containing partial information of A
+
+#     original svd_approximation_step
+
+#     Args:
+#         p_matrices
+#             a list contains H matrices (A*G) with shape (k1, n_SNPs)
+#     Return:
+#         v_matrix
+#             an approximative matrix (H hat) lets clients get approximative local G
+#     """
+
+#     # P shape: (k1*n_clients, n_SNPs)
+#     P_matrix = jnp.concatenate(p_matrices,axis=0)
+#     logging.debug(f'After concat P matrix: {P_matrix.shape}\n{P_matrix}')
+
+#     # V shape: (n_SNPs, k1)
+#     if k1 < 120:
+#         logging.debug(f'Performing sparse SVD...')
+#         U, S, v_matrix = slinalg.svds(np.array(P_matrix), k=k1)
+#         v_matrix = jnp.array(v_matrix.T)
+#     else:
+#         logging.debug(f'Performing dense SVD...')
+#         U, S, v_matrix = svd(P_matrix)
+#         v_matrix = v_matrix.T
+#         nd = min(k1, U.shape[0], v_matrix.shape[0])
+#         v_matrix = v_matrix[:, :nd]
+
+#     logging.debug(f'V matrix: {v_matrix.shape}\n{v_matrix}')
+
+#     return v_matrix
+
+
+# def init_G(A, H):
+#     """
+#     original randomized_svd_init_step in client
+#     """
+#     # Get init G from approximate H (V_MATRIX)
+#     G = vectorize.fast_dot(A.T, H)
+#     return G
