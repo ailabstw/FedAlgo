@@ -171,7 +171,7 @@ class FedSvdTestCase(unittest.TestCase):
         # Rest
         for EIGEN_IDX in range(1,self.U.shape[1]):
             residuals = [gwasprs.project.compute_residuals_step(Gs[i], orthos[i], EIGEN_IDX, NORMS) for i in range(len(Gs))]
-            RESIDUALS = gwasprs.project.residuals(residuals)
+            RESIDUALS = gwasprs.project.aggregate_residuals(residuals)
             norms = [gwasprs.project.orthogonalize_step(Gs[i], orthos[i], EIGEN_IDX, RESIDUALS) for i in range(len(Gs))]
             NORMS.append(gwasprs.project.aggregate_norms(norms))
         result = np.concatenate([gwasprs.project.normalize_step(NORMS, orthos[i]) for i in range(len(Gs))], axis=0)

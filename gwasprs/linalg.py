@@ -253,6 +253,18 @@ class QRSolver(LinearSolver):
 
 @jit
 def orthogonal_project(v, ortho, res):
+    """Orthogonalize
+
+    v - (summation of v's projections on i-1 orthogonalized eigenvectors)
+
+    Args:
+        v (np.ndarray[(1,), np.floating]) : ith eigenvector to be orthogonalized
+        ortho (list of np.ndarray[(1,), np.floating]): i-1 orthogonalized eigenvectors with shape (n,)
+        res (np.ndarray[(1,), np.floating]): residuals with shape (i-1,)
+    
+    Returns:
+        (np.ndarray[(1,), np.floating]) : ith orthogonalized eigenvector
+    """
     ortho = jnp.asarray(ortho)
     res = jnp.expand_dims(jnp.array(res), -1)
     projection = jnp.sum(res * ortho, axis=0)
@@ -310,37 +322,54 @@ def iteration_update(current_H, Hs, current_iteration, max_iterations):
     return current_H, Hs, current_iteration+1
 
 
-def init_H(m, n):
-    """
+def init_H(m, k1):
+    """Initial H matrix generation
+
+    Generate random H matrix with shape (m, k1), 
+    where m and k1 represent m SNPs and k1 latent dimensions respectively.
     original randomized_svd_init_step in aggregator
+
+    Args:
+        m (int) : number of SNPs
+        k1 (int) : latent dimensions of H matrix in SVD and must be <= n samples
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : random H matrix
     """
-    prev_H = randn(m, n)
+    prev_H = randn(m, k1)
     return prev_H
 
 
 def update_local_H(A, G):
-    """
+    """Update H matrix in edge
+
+    H = AG, where H (m, k1), A (m, n) and G (n, k1)
     original update_H_step in client
+
+    Args:
+        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
+        G (np.ndarray[(1,1), np.floating]) : randomly generated and orthonormalized G matrix in the 1st step or updated G matrix during iterations.
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : updated H matrix (m, k1)
     """
     H = mmdot(A.T, G)
     return H
 
 
 def update_global_H(Hs):
-    """
-    Algo2/10-11
-    Update global H matrix
+    """Update H matrix in aggregator
 
+    Algo2/10-11
+    Update global H matrix by summation and orthonormalization of H matrix collected from edges.
     original update_H_step in aggregator
 
     Args:
-        h_matrices
-            updated H matrices from clients
+        Hs (list of np.ndarray[(1,1), np.floating]) : H matrices collected from edges.
+
     Return:
-        H_MATRIX
-            updated and orthonormalized global H matrix
+        (np.ndarray[(1,1), np.floating]) : updated and orthonormalized H matrix (m, k1)
     """
-    # H shape: (n_SNPs, k)
     H = jnp.sum(jnp.asarray(Hs),axis=0)
     H, R = jsp.linalg.qr(H, mode='economic')
 
@@ -348,56 +377,97 @@ def update_global_H(Hs):
 
 
 def update_local_G(A, H):
-    """
+    """Update G matrix in edge
+
+    G = AtH, where G (n, k1), At (n, m) and H (m, k1)
     original update_G_step in client
+
+    Args:
+        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
+        H (np.ndarray[(1,1), np.floating]) : global H matrix from aggregator with shape (m, k1)
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : update G matrix with shape (n, k1)
     """
-    # G = vectorize.fast_dot(A.T, H)
     G = mmdot(A, H)
     return G
 
 
 def decompose_H_stack(Hs):
-    """
+    """Stack H matrices from I iterations and decompose it
+
+    Each H matrix is the updated H matrix during iterations.
+    The shape of stacked H matrix (Hs) is (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+    and I iterations depending on the convergence status and max iterations.
     original decompose_H_stack_step in aggregator
+
+    Args:
+        Hs (list of np.ndarray[(1,1), np.floating]) : H matrices from iterations
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : decomposed H matrix from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+                                           and I iterations depending on the convergence status and max iterations.
     """
     Hs = jnp.asarray(jnp.concatenate(Hs, axis=1))
     H, S, G = svd(Hs)
-    print(f'H stack shape: {Hs.shape}')
-    print(f'H shape: {H.shape}')
-
-    return H[:, :Hs.shape[1]-1]
+    return H
 
 
 def local_cov_matrix(A, H):
-    """
-    original calculate_cov_matrices_step in client
-    """
-    # P corresponds to A hat
-    P = mmdot(H, A)
+    """Calculate proxy matrix P and covariance matrix
 
-    # cov_matrix corresponds to M hat
-    cov_matrix = mmdot(P.T, P.T)
-    print(f'P shape: {P.shape}')
-    print(f'cov shape: {cov_matrix.shape}')
+    Algo5/4-5
+    P is the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
+    cov_matrix is covariance matrix with shape (k1*I, k1*I).
+
+    Args:
+        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
+        H (np.ndarray[(1,1), np.floating]) : H matrix decomposed from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+                                             and I iterations depending on the convergence status and max iterations.
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
+        (np.ndarray[(1,1), np.floating]) : the inner prodcut of proxy data matrix with shape (k1*I, k1*I) as the covariance matrix.
+    """
+    P = mmdot(H, A) # P corresponds to A hat
+    cov_matrix = mmdot(P.T, P.T) # cov_matrix corresponds to M hat
     return P, cov_matrix
 
 
-def decompose_cov_matrices(cov_matrices, k):
-    """
+def decompose_cov_matrices(cov_matrices, k2):
+    """Decompose covariance matrix in aggregator
+
+    Decompose covariance matrix collected from proxy data matrices for each edge.
     original calculate_cov_matrices_step in aggregator
+
+    Args:
+        cov_matrices (list of np.ndarray[(1,1), np.floating]) : the covariance matrices collected from edges with shape (k1*I, k1*I) for each matrix,
+                                                                where k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
+        k2 (int) : output latent dimensions of U matrix in SVD and must be <= k1*I.
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edges with shape (k1*I, k2)
     """
-    U = svd_cov_matrix(cov_matrices)[:, :k]
-    print(f'U shape: {U.shape}')
+    U = svd_cov_matrix(cov_matrices)[:, :k2]
     return U
 
 
 def local_G_and_init_orthonormalization(P, U):
-    """
+    """Update G matrix and initialize orthonomalization
+
+    Use proxy data matrix P (k1*I, n) and eigenvectors U (k1*I, k2) from aggregator to get the G matrix with shape (n, k2)
     original compute_local_G_step
+
+    Args:
+        P (np.ndarray[(1,1), np.floating]) : proxy data matrix from edge with shape (k1*I, n)
+        U (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edge with shape (k1*I, k2)
+    
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : the G matrix with shape (n, k2)
+        (int) : the norm of the first partial eigenvector (the rest is distributed on different edges)
+        (the list of np.ndarray[(1,), np.floating]) : the list used to store partial eigenvectors in the downstream orthonormalization process
     """
-    print('HERE')
-    print(f'P shape: {P.shape}')
-    print(f'U shape: {U.shape}')
+
     G = mmdot(P, U)
 
     # Orthonormalization initialize
