@@ -7,7 +7,7 @@ from . import stats, linalg
 # Aggregator
 
 ## gram_schmidt
-    
+
 def init_gram_schmidt(norms):
     """First step of the orthonormalization process 
 
@@ -84,7 +84,7 @@ def compute_residuals_step(G, Ortho, eigen_idx, norms):
         v = G[:,eigen_idx]
         r = jnp.vdot(u,v)/norms[res_idx]
         residuals.append(r)
-    
+
     return residuals
 
 def orthogonalize_step(G, Ortho, eigen_idx, residuals):
@@ -119,4 +119,3 @@ def normalize_step(norms, Ortho):
     """
     G = stats.normalize(norms, Ortho)
     return G
-    
