@@ -18,10 +18,10 @@ from .stats import (
 from .regression import (
     LinearRegression, LogisticRegression,
 )
-
 from .qc import (
     cal_qc_client, filter_ind, create_filtered_bed,
     filter_snp, cal_het_sd
 )
+from . import project
 
 
