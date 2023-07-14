@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwasprs"
-version = "0.5.4"
+version = "0.6.0"
 
 authors = [
     { name="Yueh-Hua Tu", email="yuehhua.tu@ailabs.tw" },
     { name="Yi-Lun Lee", email="yilun.lee@ailabs.tw" },
+    { name="Jian-Hung Wen", email="jianhung.wen@ailabs.tw"},
 ]
 
 description = "A GWAS-PRS package for supporting federated analysis"
