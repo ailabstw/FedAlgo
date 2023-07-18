@@ -137,12 +137,11 @@ def aggregate_sums(local_sums, local_counts):
         local_counts (list of integers) : sample count
     Return:
         (np.ndarray[(1,), np.floating]) : global mean of SNP
-        (int) : global sample count
     """
     global_count = jnp.array(local_counts).sum(axis=0)
     global_mean = jnp.array(local_sums).sum(axis=0) / global_count
 
-    return global_mean, global_count
+    return global_mean
 
 
 def local_ssq(A, global_mean):
@@ -175,7 +174,7 @@ def aggregate_ssq(local_ssqs, local_counts):
 
     Args:
         local_ssqs (list of np.ndarray[(1,), np.floating]) : sum of square as a vector
-        local_counts (list of integers) : sample count
+        local_counts (list of integers) : sample counts
 
     Return:
         (np.ndarray[(1,), np.floating]) : global variance of SNP
