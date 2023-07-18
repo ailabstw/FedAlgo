@@ -474,3 +474,42 @@ def local_G_and_init_orthonormalization(P, U):
     ortho = [G[:, 0]]
 
     return G, jnp.vdot(G[:,0],G[:,0]), ortho
+
+
+def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
+
+    # TODO (jianhung.wen) Add annotations
+
+    if latent_axis[0] != 1:
+        GT = GT.T
+    if latent_axis[1] != 1:
+        SIM = SIM.T
+
+    if GT.shape != SIM.shape:
+        raise ValueError(f'Inconcordance matrix shapes: {GT.shape} ground truth, {SIM.shape} simulation')
+
+    def _report(A):
+        I = np.identity(A.shape[0])
+        if np.testing.assert_array_almost_equal(abs(A), I, decimal=decimal) is None:
+            return ('PASSED', True)
+        else:
+            return (f'FAILED\ninner product:\n{A}', False)
+    
+    GT_orthonormal = _report(mmdot(GT,GT))
+    SIM_orthonormal = _report(mmdot(SIM,SIM))
+    concordance = _report(mmdot(GT,SIM))
+
+    message = f"\
+        =========== Concordance Estimation ===========\n\
+        Ground Truth Orthonormal: {GT_orthonormal[0]}\n\
+        Simulation Orthonormal: {SIM_orthonormal[0]}\n\
+        Concordance between GT and SIM: {concordance[0]}\n\
+        =============================================="
+    
+    print(message)
+
+    return (GT_orthonormal[1], SIM_orthonormal[1], concordance[1], message)
+
+
+
+    

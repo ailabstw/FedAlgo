@@ -36,6 +36,9 @@ class StandardizationTestCase(unittest.TestCase):
         self.X, self.As = None, None
 
     def test_federated_standardization(self):
+
+        # TODO (jianhung.wen) Modify the simulation process because the global count has been revised in stepfl process
+
         mean = np.nanmean(self.X, axis=0)
         na_idx = np.where(np.isnan(self.X))
         self.X = np.array(self.X)
