@@ -36,6 +36,9 @@ class StandardizationTestCase(unittest.TestCase):
         self.X, self.As = None, None
 
     def test_federated_standardization(self):
+
+        # TODO (jianhung.wen) Modify the simulation process because the global count has been revised in stepfl process
+
         mean = np.nanmean(self.X, axis=0)
         na_idx = np.where(np.isnan(self.X))
         self.X = np.array(self.X)
@@ -49,8 +52,8 @@ class StandardizationTestCase(unittest.TestCase):
             s, c = gwasprs.stats.nansum(self.As[i])
             sums.append(s)
             counts.append(c)
-        GLOBAL_MEAN, GLOBAL_COUNT = gwasprs.stats.aggregate_sums(sums, counts)
-
+        GLOBAL_MEAN = gwasprs.stats.aggregate_sums(sums, counts)
+        
         # global mean from imputed data
         sums, counts = [], []
         for i in range(len(self.As)):
@@ -58,15 +61,16 @@ class StandardizationTestCase(unittest.TestCase):
             sums.append(s)
             counts.append(c)
             self.As[i] = a
-        GLOBAL_MEAN, GLOBAL_COUNT = gwasprs.stats.aggregate_sums(sums, counts)
-
+        GLOBAL_MEAN = gwasprs.stats.aggregate_sums(sums, counts)
+        
         # global variance
-        ssqs = []
+        ssqs, counts = [], []
         for i in range(len(self.As)):
             a, ssq = gwasprs.stats.local_ssq(self.As[i], GLOBAL_MEAN)
             ssqs.append(ssq)
+            counts.append(a.shape[0])
             self.As[i] = a
-        GLOBAL_VAR, DELETE = gwasprs.stats.aggregate_ssq(ssqs, GLOBAL_COUNT)
+        GLOBAL_VAR, DELETE = gwasprs.stats.aggregate_ssq(ssqs, counts)
         
         result = np.concatenate([gwasprs.stats.standardize(A, GLOBAL_VAR, DELETE) for A in self.As], axis=0)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
