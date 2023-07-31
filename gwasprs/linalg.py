@@ -8,6 +8,7 @@ from jax import scipy as jsp
 from jax import random as jrand
 import logging
 
+from . import array, stats, project
 
 def nansum(A):
     snp_sum = jnp.nansum(A, axis=0)
@@ -452,7 +453,7 @@ def decompose_cov_matrices(cov_matrices, k2):
     return U
 
 
-def local_G_and_init_orthonormalization(P, U):
+def local_G_from_proxy_matrix(P, U):
     """Update G matrix and initialize orthonomalization
 
     Use proxy data matrix P (k1*I, n) and eigenvectors U (k1*I, k2) from aggregator to get the G matrix with shape (n, k2)
@@ -464,21 +465,28 @@ def local_G_and_init_orthonormalization(P, U):
     
     Returns:
         (np.ndarray[(1,1), np.floating]) : the G matrix with shape (n, k2)
-        (int) : the norm of the first partial eigenvector (the rest is distributed on different edges)
+    """
+    G = mmdot(P, U)
+    return G
+
+
+def init_orthonormalization(M):
+    """
+    This function supports general usage without SVD process.
+
+    Args:
+        M (np.ndarray[(1,1), np.floating]) : The eigenvectors should be placed vertically as M[:,i].
+    
+    Returns:
+        (np.floating) : the norm of the first partial eigenvector (the rest is distributed on different edges)
         (the list of np.ndarray[(1,), np.floating]) : the list used to store partial eigenvectors in the downstream orthonormalization process
     """
+    ortho = [M[:, 0]]
 
-    G = mmdot(P, U)
-
-    # Orthonormalization initialize
-    ortho = [G[:, 0]]
-
-    return G, jnp.vdot(G[:,0],G[:,0]), ortho
+    return jnp.vdot(M[:,0],M[:,0]), ortho
 
 
 def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
-
-    # TODO (jianhung.wen) Add annotations
 
     if latent_axis[0] != 1:
         GT = GT.T
@@ -509,6 +517,174 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
     print(message)
 
     return (GT_orthonormal[1], SIM_orthonormal[1], concordance[1], message)
+
+
+def _get_shared_args(func, local_args):
+    # Extract shared args across functions
+    shared_args = func.__code__.co_varnames[0:5]
+    return {arg:local_args.get(arg) for arg in shared_args if arg != 'formated'}
+
+def _get_func_specific_args(func, kwargs):
+    # Extract function-specific args
+    func_args = func.__code__.co_varnames
+    return {arg:kwargs.get(arg) for arg in func_args if arg in kwargs.keys()}
+
+def federated_standardization(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None):
+    if not formated:
+        shared_args = _get_shared_args(federated_standardization, locals())
+        As = array.genotype_matrix_input_formatter(**shared_args)
+    
+    # global mean without NAs
+    local_sums, local_counts = [], []
+    for edge_idx in range(len(As)):
+        s, c = stats.nansum(As[edge_idx])
+        local_sums.append(s)
+        local_counts.append(c)
+    GLOBAL_MEAN = stats.aggregate_sums(local_sums, local_counts)
+
+    # global mean from imputed data
+    local_sums, local_counts = [], []
+    for edge_idx in range(len(As)):
+        a, s, c = stats.impute_and_local_mean(As[edge_idx], GLOBAL_MEAN)
+        local_sums.append(s)
+        local_counts.append(c)
+        As[edge_idx] = a
+    GLOBAL_MEAN = stats.aggregate_sums(local_sums, local_counts)
+
+    # global variance
+    local_ssqs, local_counts = [], []
+    for edge_idx in range(len(As)):
+        a, ssq = stats.local_ssq(As[edge_idx], GLOBAL_MEAN)
+        local_ssqs.append(ssq)
+        local_counts.append(a.shape[0])
+        As[edge_idx] = a
+    GLOBAL_VAR, DELETE = stats.aggregate_ssq(local_ssqs, local_counts)
+
+    # standardize
+    std_As = []
+    for edge_idx in range(len(As)):
+        std_a = stats.standardize(As[edge_idx], GLOBAL_VAR, DELETE)
+        std_As.append(std_a)
+
+    return std_As
+
+
+def federated_vertical_subspace_iteration(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None,
+                                          transposed=False, k1=20, epsilon=1e-9, max_iterations=20):
+    if not formated or not transposed:
+        shared_args = _get_shared_args(federated_vertical_subspace_iteration, locals())
+        As = array.genotype_matrix_input_formatter(transpose=True, **shared_args)
+
+    # edge init
+    local_Gs = []
+    for edge_idx in range(len(As)):
+        g = randn(As[edge_idx].shape[1], k1)
+        g, r = jsp.linalg.qr(g, mode='economic')
+        local_Gs.append(g)
+
+    # aggregator init
+    prev_H = init_H(As[0].shape[0], k1)
+    current_iteration = 1
+    H_converged = False
+    Hs = []
+
+    # Vertical subspace iterations
+    while not H_converged and current_iteration < max_iterations:
+        # Update global H
+        hs = []
+        for edge_idx in range(len(As)):
+            h = update_local_H(As[edge_idx], local_Gs[edge_idx])
+            hs.append(h)
+        GLOBAL_H = update_global_H(hs)
+
+        # Check convergence & save global H
+        H_converged, _ = check_eigenvector_convergence(GLOBAL_H, prev_H, epsilon)
+        prev_H, Hs, current_iteration = iteration_update(GLOBAL_H, Hs, current_iteration, max_iterations)
+
+        # Update local G
+        for edge_idx in range(len(As)):
+            g = update_local_G(As[edge_idx], GLOBAL_H)
+            local_Gs[edge_idx] = g
+
+    return As, Hs, local_Gs
+
+
+def federated_randomized_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None,
+                             transposed=False, Hs=None, local_Gs=None, k2=20, **kwargs):
+    shared_args = _get_shared_args(federated_randomized_svd, locals())
+
+    # If Hs or local_Gs is missing, generate it.
+    # If Hs exists, check whether As is formated.
+    if (Hs or local_Gs) is None:
+        kwargs.update(shared_args)
+        As, Hs, local_Gs = federated_vertical_subspace_iteration(**kwargs)
+    elif not formated or not transposed:
+        As = array.genotype_matrix_input_formatter(transpose=True, **shared_args)
+    
+    # Get the projection matrix 
+    GLOBAL_H = decompose_H_stack(Hs)
+
+    # Form proxy data matrices to get proxy covariance matrices
+    Ps, COVs = [], []
+    for edge_idx in range(len(As)):
+        p, cov = local_cov_matrix(As[edge_idx], GLOBAL_H)
+        Ps.append(p)
+        COVs.append(cov)
+    GLOBAL_U = decompose_cov_matrices(COVs, k2)
+
+    # Update G matrix and prepare for the orthonormalization
+    for edge_idx in range(len(As)):
+        g = local_G_from_proxy_matrix(Ps[edge_idx], GLOBAL_U)
+        local_Gs[edge_idx] = g
+    
+    return GLOBAL_H, local_Gs
+
+
+def final_H_update(As, local_Gs):
+    hs = []
+    for edge_idx in range(len(As)):
+        h = update_local_H(As[edge_idx], local_Gs[edge_idx])
+        hs.append(h)
+    GLOBAL_H = update_global_H(hs)
+    return GLOBAL_H
+
+
+def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None, **kwargs):
+    if not formated:
+        shared_args = _get_shared_args(federated_svd, locals())
+        As = array.genotype_matrix_input_formatter(**shared_args)
+    shared_args = {'As':As, 'formated':True, 'edge_axis':0, 'sample_axis':1, 'snp_axis':2}
+
+    # Standardization
+    std_As = federated_standardization(**shared_args)
+    std_As = array.genotype_matrix_input_formatter(std_As, 0, 1, 2, transpose=True)
+    shared_args.update({'As':std_As, 'transposed':True})
+    
+    # Vertical subspace iterations
+    vsi_kwargs = {**shared_args, **_get_func_specific_args(federated_vertical_subspace_iteration, kwargs)}
+    As, Hs, local_Gs = federated_vertical_subspace_iteration(**vsi_kwargs)
+    shared_args.update({'As':As})
+    kwargs.update({'Hs':Hs, 'local_Gs':local_Gs})
+
+    # Randomized SVD
+    randomized_kwargs = {**shared_args, **_get_func_specific_args(federated_randomized_svd, kwargs)}
+    GLOBAL_H, local_Gs = federated_randomized_svd(**randomized_kwargs)
+    kwargs.update({'GLOBAL_H':GLOBAL_H, 'MTXs':local_Gs})
+
+    # Gram-Schmidt Orthonormalization
+    ortho_kwargs = {**_get_func_specific_args(project.federated_orthonormalization, kwargs)}
+    local_Gs = project.federated_orthonormalization(**ortho_kwargs)
+
+    # Final global H update
+    GLOBAL_H = final_H_update(As, local_Gs)
+
+    return local_Gs, GLOBAL_H
+
+
+
+
+        
+
 
 
 

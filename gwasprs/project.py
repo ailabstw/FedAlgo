@@ -74,7 +74,8 @@ def compute_residuals_step(G, Ortho, eigen_idx, norms):
         G (np.ndarray[(1,1), np.floating]) : The G matrix with shape (n, k2), where n and k2 represent the number of samples and the latent dimensions decided in gwasprs.linalg.decompose_cov_matrices step.
         Ortho (list of np.ndarray[(1,), np.floating]) : the list stores i-1 orthogonalized vectors (n,) of G matrix.
         eigen_idx (int) : the index represents ith eigenvector, e.g. 2nd eigenvector: eigen_idx=1.
-    
+        norms (list of np.floating) : list stored i-1 real global norms
+
     Returns:
         (list of np.floating) : i-1 residuals used for orthogonalized ith eigenvector.
     """
@@ -119,3 +120,52 @@ def normalize_step(norms, Ortho):
     """
     G = stats.normalize(norms, Ortho)
     return G
+
+def federated_orthonormalization(MTXs):
+    """Federated Orthonormalization
+
+    the MTXs are better close to orthogonal, 
+    otherwise, the result will probably be poor at the last eigenvectors.
+    (has been tested using randomly generated gaussian)
+
+    Args:
+        MTXs (list of np.ndarray[(1,1), np.floating]) : matrices to be orthonormalized
+    
+    Returns:
+        (list of np.ndarray[(1,1), np.floating]) : orthonormalized MTXs
+    """
+
+    # First eigenvector
+    local_mtx, norms, orthos = [], [], []
+    for edge_idx in range(len(MTXs)):
+        norm, ortho = linalg.init_orthonormalization(MTXs[edge_idx])
+        local_mtx.append(MTXs[edge_idx])
+        norms.append(norm)
+        orthos.append(ortho)
+    NORMS = init_gram_schmidt(norms)
+
+    # Rest
+    for EIGEN_IDX in range(1, MTXs[0].shape[1]):
+        # Calculate residuals
+        residuals = []
+        for edge_idx in range(len(MTXs)):
+            res = compute_residuals_step(MTXs[edge_idx], orthos[edge_idx], EIGEN_IDX, NORMS)
+            residuals.append(res)
+        RESIDUALS = aggregate_residuals(residuals)
+
+        # Calculate norms
+        norms = []
+        for edge_idx in range(len(MTXs)):
+            norm = orthogonalize_step(MTXs[edge_idx], orthos[edge_idx], EIGEN_IDX, RESIDUALS)
+            norms.append(norm)
+        NORMS.append(aggregate_norms(norms))
+    
+    # Normalize the length to 1
+    ORTHONORMAL_MTXs = []
+    for edge_idx in range(len(MTXs)):
+        orthonormal_mtx = normalize_step(NORMS, orthos[edge_idx])
+        ORTHONORMAL_MTXs.append(orthonormal_mtx)
+
+    return ORTHONORMAL_MTXs
+    
+

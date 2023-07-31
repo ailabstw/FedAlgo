@@ -15,7 +15,7 @@ class QcTestCase(unittest.TestCase):
 
     def setUp(self):
         #self.bed_path = "/mnt/prsdata/Test/Data/DEMO_REG/demo_hg38"
-        self.bed_path = f"{data_path}/test_bfile/hapmap1_100_2"
+        self.bed_path = f"{data_path}/test_bfile/hapmap1_100"
         self.output = "/tmp/qc"
         self.HET_BIN = 1000
         self.HET_RANGE = (-0.5, 0.5)

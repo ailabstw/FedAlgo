@@ -120,97 +120,103 @@ class LinAlgTestCase(unittest.TestCase):
         norm = np.linalg.norm(result - ans)
         self.assertAlmostEqual(norm, 0, places=5)
 
-class FedSvdTestCase(unittest.TestCase):
 
-    def setUp(self):
+
+class FederatedSVDTestCase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(self):
         key = random.PRNGKey(758493)
-        self.n_clients = 3
+        n_edges, n_samples, n_SNPs = 4, [30,50,40,60], 200
+        self.k1, self.k2, self.max_iterations, self.epsilon = 20, 20, 20, 1e-9
 
-        # Orthonormalization
-        G, R = gwasprs.array.simulate_eigenvectors(30, 21)
-        self.Ps = [G[i*7:(i+1)*7, :].T for i in range(self.n_clients)]
-        self.U = R
+        # init A : n_samples * n_SNPs
+        self.As = [gwasprs.array.simulate_genotype_matrix(key, shape=(n_samples[edge_idx], n_SNPs)) for edge_idx in range(n_edges)]
+        self.shared_args = {'As':self.As, 'formated':True, 'edge_axis':0, 'sample_axis':1, 'snp_axis':2}
+        split_idx = [sum(n_samples[:edge_idx+1]) for edge_idx in range(n_edges)]
 
-        # Randomzied SVD
-        # Edge
-        A = gwasprs.array.simulate_genotype_matrix(key, shape=(30,60), impute=True, standardize=True)
-        self.As = [A[i*10:(i+1)*10, :].T for i in range(self.n_clients)]
-        n_samples = int(A.shape[0]/self.n_clients)
-        self.Gs = [gwasprs.linalg.randn(n_samples, n_samples, i) for i in range(self.n_clients)]
-        self.Gs = [jsp.linalg.qr(g, mode='economic')[0] for g in self.Gs]
+        # Standardization answer
+        GLOBAL_A = np.concatenate(self.As, axis=0)
+        mean = np.nanmean(GLOBAL_A, axis=0)
+        na_idx = np.where(np.isnan(GLOBAL_A))
+        GLOBAL_A = np.array(GLOBAL_A)
+        GLOBAL_A[na_idx] = np.take(mean, na_idx[1])
+        self.GLOBAL_A_ans = (GLOBAL_A-np.mean(GLOBAL_A,axis=0))/np.nanstd(GLOBAL_A,axis=0,ddof=1)
+        self.GLOBAL_A_ans = np.delete(self.GLOBAL_A_ans, np.isnan(self.GLOBAL_A_ans[0]),axis=1)
+        self.GLOBAL_As_ans = np.vsplit(self.GLOBAL_A_ans, split_idx)[:n_edges]
 
-        # Aggregator
-        self.prev_H = gwasprs.linalg.init_H(60, n_samples)
-        self.epsilon = 1e-9
-        self.current_iteration = 1
-        self.max_iterations = 20
-        self.H_converged = False
-        self.Hs = []
-        self.k = 10
+        # SVD answer
+        self.GLOBAL_G_ans, s, self.GLOBAL_H_ans = jsp.linalg.svd(self.GLOBAL_A_ans, full_matrices=False)
+        self.GLOBAL_G_ans = self.GLOBAL_G_ans[:,0:self.k2]
+        self.GLOBAL_H_ans = self.GLOBAL_H_ans.T[:,0:self.k2]
+
+        # Orthonormalization init
+        G, R = gwasprs.array.simulate_eigenvectors(np.sum(n_samples), n_SNPs, self.k2)
+        self.Gs = np.vsplit(G, split_idx)[:n_edges]
 
     
-    def tearDown(self):
-        self.Ps, self.U = None, None
-        self.As, self.Gs, self.Hs = None, None, None
-        self.prev_H = None
-
-    def test_federated_gram_schmidt_orthonormalization(self):
-        Gs = [gwasprs.linalg.mmdot(p, self.U) for p in self.Ps]
-        G = np.concatenate(Gs, axis=0)
-        ans, R = jsp.linalg.qr(G, mode='economic')
-        
-        # First eigenvector
-        Gs, norms, orthos = [], [], []
-        for p in self.Ps:
-            g, norm, ortho = gwasprs.linalg.local_G_and_init_orthonormalization(p, self.U)
-            Gs.append(g)
-            norms.append(norm)
-            orthos.append(ortho)
-        NORMS = gwasprs.project.init_gram_schmidt(norms)
-
-        # Rest
-        for EIGEN_IDX in range(1,self.U.shape[1]):
-            residuals = [gwasprs.project.compute_residuals_step(Gs[i], orthos[i], EIGEN_IDX, NORMS) for i in range(len(Gs))]
-            RESIDUALS = gwasprs.project.aggregate_residuals(residuals)
-            norms = [gwasprs.project.orthogonalize_step(Gs[i], orthos[i], EIGEN_IDX, RESIDUALS) for i in range(len(Gs))]
-            NORMS.append(gwasprs.project.aggregate_norms(norms))
-        result = np.concatenate([gwasprs.project.normalize_step(NORMS, orthos[i]) for i in range(len(Gs))], axis=0)
-
-        INNER_PRODUCTS = gwasprs.linalg.mmdot(ans, result)
-        np.testing.assert_array_almost_equal(np.identity(INNER_PRODUCTS.shape[0]), abs(INNER_PRODUCTS), decimal=5)
+    def test_federated_standardization(self):
+        result = np.concatenate(gwasprs.linalg.federated_standardization(**self.shared_args), axis=0)
+        np.testing.assert_array_almost_equal(self.GLOBAL_A_ans, result, decimal=5)
     
-    def test_federated_randomized_svd(self):
-        A = np.concatenate(self.As, axis=1)
-        u, s, ans = jsp.linalg.svd(A, full_matrices=False)
 
-        # Algorithm 2 iterations
-        while not self.H_converged and self.current_iteration < self.max_iterations:
-            # Update global H
-            Hs = [gwasprs.linalg.update_local_H(self.As[i], self.Gs[i]) for i in range(self.n_clients)]
-            GLOBAL_H = gwasprs.linalg.update_global_H(Hs)
+    def test_federated_vertical_subspace_iteration(self):
+        gwasprs.linalg.federated_vertical_subspace_iteration(**self.shared_args)
 
-            # Check convergence & save H
-            self.H_converged, _ = gwasprs.linalg.check_eigenvector_convergence(GLOBAL_H, self.prev_H, self.epsilon)
-            self.prev_H, self.Hs, self.current_iteration = gwasprs.linalg.iteration_update(GLOBAL_H, self.Hs, self.current_iteration, self.max_iterations)
 
-            # Update local G
-            for i in range(self.n_clients):
-                g = gwasprs.linalg.update_local_G(self.As[i], GLOBAL_H)
-                self.Gs[i] = g
-        
-        # Algorithm 5 main steps
-        GLOBAL_H = gwasprs.linalg.decompose_H_stack(self.Hs) 
-        Ps, covs = [], []
-        for a in self.As:
-            p, cov = gwasprs.linalg.local_cov_matrix(a, GLOBAL_H)
-            Ps.append(p)
-            covs.append(cov)
-        GLOBAL_U = gwasprs.linalg.decompose_cov_matrices(covs, self.k)
-        for i in range(self.n_clients):
-            g, norm, ortho = gwasprs.linalg.local_G_and_init_orthonormalization(Ps[i], GLOBAL_U)
-            self.Gs[i] = g
-        result = np.concatenate(self.Gs, axis=0)
-        result, r = jsp.linalg.qr(result, mode='economic')
+    def test_federated_randomized_svd_with_vsi(self):
+        kwargs = {**self.shared_args, **{'k1':self.k1, 'epsilon':self.epsilon, 'max_iterations':self.max_iterations}}
+        kwargs['As'] = self.GLOBAL_As_ans
 
-        INNER_PRODUCTS = gwasprs.linalg.mmdot(ans.T, result)[:self.k, :self.k]
-        np.testing.assert_array_almost_equal(np.identity(INNER_PRODUCTS.shape[0]), abs(INNER_PRODUCTS), decimal=5)
+        # Vertical subspace iterations, the output As (n_SNPs, n_samples)
+        As, Hs, local_Gs = gwasprs.linalg.federated_vertical_subspace_iteration(**kwargs)
+
+        # Randomized SVD
+        kwargs.update({'As':As, 'Hs':Hs, 'local_Gs':local_Gs, 'k2':self.k2, 'transposed':True})
+        result_H, result_Gs = gwasprs.linalg.federated_randomized_svd(**kwargs)
+
+        # Final update of H
+        result_H = gwasprs.linalg.final_H_update(As, result_Gs)
+
+        # Evaluations
+        result_G = np.concatenate(result_Gs, axis=0)
+        result_G = jsp.linalg.qr(result_G, mode='economic')[0]
+
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_G_ans, result_G, decimal=3)
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_H_ans, result_H, decimal=3)
+
+    
+    def test_federated_randomized_svd_without_vsi(self):
+        kwargs = {**self.shared_args, **{'k1':self.k1, 'epsilon':self.epsilon, 'max_iterations':self.max_iterations, 'k2':self.k2}}
+        kwargs['As'] = self.GLOBAL_As_ans
+
+        # Randomized SVD
+        result_H, result_Gs = gwasprs.linalg.federated_randomized_svd(**kwargs)
+
+        # Final update of H
+        As = gwasprs.array.genotype_matrix_input_formatter(kwargs['As'], 0, 1, 2, transpose=True)
+        result_H = gwasprs.linalg.final_H_update(As, result_Gs)
+
+        # Evaluations
+        result_G = np.concatenate(result_Gs, axis=0)
+        result_G = jsp.linalg.qr(result_G, mode='economic')[0]
+
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_G_ans, result_G, decimal=3)
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_H_ans, result_H, decimal=3)
+    
+
+    def test_federated_gram_schmidt_orthonormalization_(self):
+        gwasprs.project.federated_orthonormalization(self.Gs)
+    
+
+    def test_federated_svd(self):
+        kwargs = {**self.shared_args, **{'k1':self.k1, 'epsilon':self.epsilon, 'max_iterations':self.max_iterations, 'k2':self.k2}}
+
+        # Federated SVD
+        result_Gs, result_H = gwasprs.linalg.federated_svd(**kwargs)
+
+        # Evaluations
+        result_G = np.concatenate(result_Gs, axis=0)
+
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_G_ans, result_G, decimal=4)
+        gwasprs.linalg.eigenvec_concordance_estimation(self.GLOBAL_H_ans, result_H, decimal=4)
