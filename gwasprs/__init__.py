@@ -17,6 +17,7 @@ from .stats import (
 )
 from .regression import (
     LinearRegression, LogisticRegression,
+    BatchedLinearRegression, BatchedLogisticRegression
 )
 from .qc import (
     cal_qc_client, filter_ind, create_filtered_bed,
