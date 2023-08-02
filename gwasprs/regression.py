@@ -114,7 +114,6 @@ class BatchedLinearRegression(LinearModel):
             int: _description_
         """
         k = self.coef.shape[0]
-        print(f'k: {k}')
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1, 1), np.floating]', acceleration="single"):
@@ -127,13 +126,13 @@ class BatchedLinearRegression(LinearModel):
             minibatch, remainder = divmod(batch, ncores)
             A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
             a = np.reshape(self.coef[:(minibatch*ncores), :], (ncores, minibatch, ndims))
-            Y = np.reshape(pmap_func(A, a), (-1, nsample)) ##
+            Y = np.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
                 B = X[(minibatch*ncores):, :, :]
                 b = self.coef[(minibatch*ncores):, :]
                 Z = linalg.batched_mvmul(B, b)
-                Y = np.concatenate((Y, Z), axis=0) ##
+                Y = np.concatenate((Y, Z), axis=0)
             return Y
         else:
             raise ValueError(f"{acceleration} acceleration is not supported.")
@@ -151,11 +150,11 @@ class BatchedLinearRegression(LinearModel):
 
     def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
         res = self.residual(X, y, acceleration=acceleration)
-        return jnp.expand_dims(linalg.batched_vdot(res, res), 0)
+        return jnp.expand_dims(linalg.batched_vdot(res, res), -1)
 
     def t_stats(self, sse, XtX, dof):
         XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = sse / dof
+        sigma_squared = jnp.expand_dims(sse / dof, -1)
         vars = linalg.batched_diagonal(sigma_squared * XtXinv)
         std = jnp.sqrt(vars)
         t_stat = self.coef / std

@@ -95,7 +95,7 @@ def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return jnp.sum(x * y, axis=0)
+    return jnp.sum(x * y, axis=1)
 
 
 @jit
