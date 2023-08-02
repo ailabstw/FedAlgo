@@ -200,7 +200,7 @@ class BatchedLogisticRegression(LinearModel):
 
     def predict(self, X, acceleration="single"):
         if acceleration == "single":
-            predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvdot(X, self.__beta)))
+            predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
             return jnp.expand_dims(predicted_y, -1)
         
         elif acceleration == "pmap":
@@ -210,14 +210,14 @@ class BatchedLogisticRegression(LinearModel):
             minibatch, remainder = divmod(batch, ncores)
             A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
             a = np.reshape(self.__beta[:(minibatch*ncores), :], (ncores, minibatch, ndims))
-            Y = np.reshape(pmap_func(A, a), (nsample, -1))
+            Y = np.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
                 B = X[(minibatch*ncores):, :, :]
                 b = self.__beta[(minibatch*ncores):, :]
                 Z = linalg.batched_logistic_predict(B, b)
                 Y = np.concatenate((Y, Z), axis=0)
-            return Y
+            return jnp.expand_dims(Y, -1)
         else:
             raise ValueError(f"{acceleration} acceleration is not supported.")
     
@@ -227,19 +227,19 @@ class BatchedLogisticRegression(LinearModel):
         self.__beta = self.beta(grad, H)
     
     def residual(self, X, y):
-        return linalg.batched_logistic_residual(X, y)
+        return linalg.batched_logistic_residual(y, self.predict(X))
 
     def gradient(self, X, y):
-        return linalg.batched_logistic_gradient(X, y)
+        return linalg.batched_logistic_gradient(X, self.residual(X,y))
     
     def hessian(self, X):
-        return linalg.batched_logistic_hessian(X)
+        return linalg.batched_logistic_hessian(X, self.predict(X))
     
     def loglikelihood(self, X, y):
-        return linalg.batched_logistic_loglikelihood(X, y)
+        return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.BatchedCholeskySolver()):
-        return jnp.expand_dims(self.__beta, -1) + solver(hessian, gradient)
+        return self.__beta + solver(hessian, gradient)
     
 
 

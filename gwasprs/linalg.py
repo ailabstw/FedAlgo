@@ -683,47 +683,45 @@ def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis
 
 @jit
 def logistic_predict(X, beta):
-    pred_y = 1 / (1 + jnp.exp(-mvdot(X,beta)))
+    pred_y = 1 / (1 + jnp.exp(-mvmul(X,beta)))
     return pred_y
+
+@jit
+def logistic_residual(y, pred_y):
+    return jnp.expand_dims(y, -1) - pred_y
+
+@jit
+def logistic_gradient(X, residual):
+    return mvdot(X, residual)
+
+@jit
+def logistic_hessian(X, pred_y):
+    return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
+
+@jit
+def logistic_loglikelihood(X, y, pred_y):
+    epsilon = jnp.finfo(float).eps
+    return jnp.sum(y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon))
 
 @jit
 def batched_logistic_predict(X, beta):
     return vmap(logistic_predict, (0,0), 0)(X, beta)
 
 @jit
-def logistic_residual(X, y):
-    return jnp.expand_dims(y, -1) - logistic_predict(X)
+def batched_logistic_residual(y, pred_y):
+    return vmap(logistic_residual, (0,0), 0)(y, pred_y)
 
 @jit
-def batched_logistic_residual(X, y):
-    return vmap(logistic_residual, (0,0), 0)(X, y)
+def batched_logistic_gradient(X, residual):
+    return vmap(logistic_gradient, (0,0), 0)(X, residual)
 
 @jit
-def logistic_gradient(X, y):
-    return mvmul(X.T, logistic_residual(X, y))
+def batched_logistic_hessian(X, pred_y):
+    return vmap(logistic_hessian, (0,0), 0)(X, pred_y)
 
 @jit
-def batched_logistic_gradient(X, y):
-    return vmap(logistic_gradient, (0,0), 0)(X, y)
-
-@jit
-def logistic_hessian(X):
-    pred_y = logistic_predict(X)
-    return jnp.dot(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
-
-@jit
-def batched_logistic_hessian(X):
-    return vmap(logistic_hessian, (0,0), 0)(X)
-
-@jit
-def logistic_loglikelihood(X, y):
-    epsilon = jnp.finfo(float).eps
-    pred_y = logistic_predict(X)
-    return jnp.sum(y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon))
-
-@jit
-def batched_logistic_loglikelihood(X, y):
-    return vmap(logistic_loglikelihood, (0,0), 0)(X, y)
+def batched_logistic_loglikelihood(X, y, pred_y):
+    return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
         
 
 
