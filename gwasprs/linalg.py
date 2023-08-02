@@ -111,7 +111,7 @@ def batched_mvdot(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return vmap(mvdot, (2, 1), 1)(X, y)
+    return vmap(mvdot, (0, 0), 0)(X, y)
 
 @jit
 def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -126,7 +126,7 @@ def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return vmap(mvmul, (2, 1), 1)(X, y)
+    return vmap(mvmul, (0, 0), 0)(X, y)
 
 @jit
 def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -141,7 +141,7 @@ def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
     """
-    return vmap(mmdot, 2, 2)(X, Y)
+    return vmap(mmdot, 0, 0)(X, Y)
 
 @jit
 def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -156,40 +156,40 @@ def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
     """
-    return vmap(matmul, 2, 2)(X, Y)
+    return vmap(matmul, 0, 0)(X, Y)
 
 
 @jit
 def batched_diagonal(X: np.ndarray) -> np.ndarray:
-    return vmap(jnp.diagonal, 2, 1)(X)
+    return vmap(jnp.diagonal, 0, 0)(X)
 
 
 @jit
 def batched_inv(X: np.ndarray) -> np.ndarray:
-    return vmap(jnp.linalg.inv, 2, 2)(X)
+    return vmap(jnp.linalg.inv, 0, 0)(X)
 
 
 def batched_cholesky(X: np.ndarray) -> np.ndarray:
-    batch_size = X.shape[2]
+    batch_size = X.shape[0]
     L = np.empty(X.shape)
     for b in range(batch_size):
-        L.view()[:, :, b] = np.linalg.cholesky(X[:, :, b])
+        L.view()[b, :, :] = np.linalg.cholesky(X[b, :, :])
     return L
 
 
 @jit
 def batched_solve(X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return vmap(jsp.linalg.solve, (2, 1), 1)(X, y)
+    return vmap(jsp.linalg.solve, (0, 0), 0)(X, y)
 
 
 @jit
 def batched_solve_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (2, 1), 1)(X, y)
+    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (0, 0), 0)(X, y)
 
 
 @jit
 def batched_solve_trans_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (2, 1), 1)(X, y)
+    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (0, 0), 0)(X, y)
 
 
 class LinearSolver(object, metaclass=ABCMeta):
@@ -681,8 +681,49 @@ def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis
     return local_Gs, GLOBAL_H
 
 
+@jit
+def logistic_predict(X, beta):
+    pred_y = 1 / (1 + jnp.exp(-mvdot(X,beta)))
+    return pred_y
 
+@jit
+def batched_logistic_predict(X, beta):
+    return vmap(logistic_predict, (0,0), 0)(X, beta)
 
+@jit
+def logistic_residual(X, y):
+    return jnp.expand_dims(y, -1) - logistic_predict(X)
+
+@jit
+def batched_logistic_residual(X, y):
+    return vmap(logistic_residual, (0,0), 0)(X, y)
+
+@jit
+def logistic_gradient(X, y):
+    return mvmul(X.T, logistic_residual(X, y))
+
+@jit
+def batched_logistic_gradient(X, y):
+    return vmap(logistic_gradient, (0,0), 0)(X, y)
+
+@jit
+def logistic_hessian(X):
+    pred_y = logistic_predict(X)
+    return jnp.dot(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
+
+@jit
+def batched_logistic_hessian(X):
+    return vmap(logistic_hessian, (0,0), 0)(X)
+
+@jit
+def logistic_loglikelihood(X, y):
+    epsilon = jnp.finfo(float).eps
+    pred_y = logistic_predict(X)
+    return jnp.sum(y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon))
+
+@jit
+def batched_logistic_loglikelihood(X, y):
+    return vmap(logistic_loglikelihood, (0,0), 0)(X, y)
         
 
 
