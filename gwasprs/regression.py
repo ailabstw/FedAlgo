@@ -2,7 +2,7 @@ from abc import ABCMeta
 
 import numpy as np
 from jax import numpy as jnp
-from jax import pmap
+from jax import jit, vmap, pmap
 
 from . import linalg, stats, utils
 
@@ -120,19 +120,19 @@ class BatchedLinearRegression(LinearModel):
         if acceleration == "single":
             return linalg.batched_mvmul(X, self.coef)
         elif acceleration == "pmap":
-            pmap_func = pmap(linalg.batched_mvmul, in_axes = (3, 2), out_axes = 2)
+            pmap_func = pmap(linalg.batched_mvmul, in_axes = (0, 0), out_axes = 0)
             ncores = utils.jax_cpu_cores()
-            nsample, ndims, batch = X.shape
+            batch, nsample, ndims = X.shape
             minibatch, remainder = divmod(batch, ncores)
-            A = np.reshape(X[:, :, :(minibatch*ncores)], (nsample, ndims, minibatch, ncores))
-            a = np.reshape(self.coef[:, :(minibatch*ncores)], (ndims, minibatch, ncores))
-            Y = np.reshape(pmap_func(A, a), (nsample, -1))
+            A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
+            a = np.reshape(self.coef[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            Y = np.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
-                B = X[:, :, (minibatch*ncores):]
-                b = self.coef[:, (minibatch*ncores):]
+                B = X[(minibatch*ncores):, :, :]
+                b = self.coef[(minibatch*ncores):, :]
                 Z = linalg.batched_mvmul(B, b)
-                Y = np.concatenate((Y, Z), axis=1)
+                Y = np.concatenate((Y, Z), axis=0)
             return Y
         else:
             raise ValueError(f"{acceleration} acceleration is not supported.")
@@ -150,11 +150,11 @@ class BatchedLinearRegression(LinearModel):
 
     def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
         res = self.residual(X, y, acceleration=acceleration)
-        return jnp.expand_dims(linalg.batched_vdot(res, res), 0)
+        return jnp.expand_dims(linalg.batched_vdot(res, res), -1)
 
     def t_stats(self, sse, XtX, dof):
         XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = sse / dof
+        sigma_squared = jnp.expand_dims(sse / dof, -1)
         vars = linalg.batched_diagonal(sigma_squared * XtXinv)
         std = jnp.sqrt(vars)
         t_stat = self.coef / std
@@ -192,3 +192,56 @@ class LogisticRegression(LinearModel):
     def beta(self, gradient, hessian, solver=linalg.CholeskySolver()):
         # solver calculates H^-1 grad in faster way
         return jnp.expand_dims(self.__beta, -1) + solver(hessian, gradient)
+
+
+class BatchedLogisticRegression(LinearModel):
+    def __init__(self, beta=None) -> None:
+        self.__beta = beta
+
+    def predict(self, X, acceleration="single"):
+        if acceleration == "single":
+            predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
+            return jnp.expand_dims(predicted_y, -1)
+        
+        elif acceleration == "pmap":
+            pmap_func = pmap(linalg.batched_logistic_predict, in_axes=(0,0), out_axes=0)
+            ncores = utils.jax_cpu_cores()
+            batch, nsample, ndims = X.shape
+            minibatch, remainder = divmod(batch, ncores)
+            A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
+            a = np.reshape(self.__beta[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            Y = np.reshape(pmap_func(A, a), (-1, nsample))
+
+            if remainder != 0:
+                B = X[(minibatch*ncores):, :, :]
+                b = self.__beta[(minibatch*ncores):, :]
+                Z = linalg.batched_logistic_predict(B, b)
+                Y = np.concatenate((Y, Z), axis=0)
+            return jnp.expand_dims(Y, -1)
+        else:
+            raise ValueError(f"{acceleration} acceleration is not supported.")
+    
+    def fit(self, X, y):
+        grad = self.gradient(X, y)
+        H = self.hessian(X)
+        self.__beta = self.beta(grad, H)
+    
+    def residual(self, X, y):
+        return linalg.batched_logistic_residual(y, self.predict(X))
+
+    def gradient(self, X, y):
+        return linalg.batched_logistic_gradient(X, self.residual(X,y))
+    
+    def hessian(self, X):
+        return linalg.batched_logistic_hessian(X, self.predict(X))
+    
+    def loglikelihood(self, X, y):
+        return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
+
+    def beta(self, gradient, hessian, solver=linalg.BatchedCholeskySolver()):
+        return self.__beta + solver(hessian, gradient)
+    
+
+
+
+    
