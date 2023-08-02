@@ -683,44 +683,162 @@ def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis
 
 @jit
 def logistic_predict(X, beta):
+    """Logistic regression prediction
+
+    Perform sigmoid(X*beta)
+
+    Args:
+        X (np.ndarray[(1, 1), np.floating]): Matrix.
+        beta (np.ndarray[(1,), np.floating]): Vector.
+
+    Returns:
+        np.ndarray[(1,), np.floating]: Vector.
+    """
     pred_y = 1 / (1 + jnp.exp(-mvmul(X,beta)))
     return pred_y
 
 @jit
 def logistic_residual(y, pred_y):
+    """Residual calculation
+
+    Perform y - predicted_y
+
+    Args:
+        y (np.ndarray[(1,), np.floating]): Vector.
+        pred_y (np.ndarray[(1, 1), np.floating]): Vector.
+
+    Returns:
+        np.ndarray[(1, 1), np.floating]: Vector.
+    """
     return jnp.expand_dims(y, -1) - pred_y
 
 @jit
 def logistic_gradient(X, residual):
+    """Logistic gradient vector
+
+    Perform X.T * (y - predicted_y)
+
+    Args:
+        X (np.ndarray[(1, 1), np.floating]): Matrix.
+        residual (np.ndarray[(1, 1), np.floating]): Vector.
+
+    Returns:
+        np.ndarray[(1, 1), np.floating]: Vector.
+    """
     return mvdot(X, residual)
 
 @jit
 def logistic_hessian(X, pred_y):
+    """Logistic hessian matrix
+
+    Perform jnp.multiply(X.T, (pred_y * (1 - pred_y)).T) * X
+
+    Args:
+        X (np.ndarray[(1, 1), np.floating]): Matrix.
+        pred_y (np.ndarray[(1, 1), np.floating]): Vector.
+
+    Returns:
+        np.ndarray[(1, 1, 1), np.floating]: Matrix.
+    """
     return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
 
 @jit
 def logistic_loglikelihood(X, y, pred_y):
+    """Logistic log likelihood estimation
+
+    Perform SUM(
+        y * log(predicted_y + epsilon) + 
+        (1 - y) * log(1 - predicted_y + epsilon)
+    )
+
+    Args:
+        X (np.ndarray[(1, 1), np.floating]): Matrix.
+        y (np.ndarray[(1,), np.floating]): Vector.
+        pred_y (np.ndarray[(1, 1), np.floating]): Vector.
+
+    Returns:
+        np.ndarray[(1,), np.floating]: float.
+    """
     epsilon = jnp.finfo(float).eps
     return jnp.sum(y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon))
 
 @jit
 def batched_logistic_predict(X, beta):
+    """Batched logistic regression prediction
+
+    Perform sigmoid(X*beta)
+
+    Args:
+        X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
+        beta (np.ndarray[(1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1, 1), np.floating]: Batched vector.
+    """
     return vmap(logistic_predict, (0,0), 0)(X, beta)
 
 @jit
 def batched_logistic_residual(y, pred_y):
+    """Batched residual calculation
+
+    Perform y - predicted_y
+
+    Args:
+        y (np.ndarray[(1, 1), np.floating]): Batched vector.
+        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1, 1, 1), np.floating]: Batched vector.
+    """
     return vmap(logistic_residual, (0,0), 0)(y, pred_y)
 
 @jit
 def batched_logistic_gradient(X, residual):
+    """Batched logistic gradient vector
+
+    Perform X.T * (y - predicted_y)
+
+    Args:
+        X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
+        residual (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1, 1, 1), np.floating]: Batched vector.
+    """
     return vmap(logistic_gradient, (0,0), 0)(X, residual)
 
 @jit
 def batched_logistic_hessian(X, pred_y):
+    """Batched logistic hessian matrix
+
+    Perform jnp.multiply(X.T, (pred_y * (1 - pred_y)).T) * X
+
+    Args:
+        X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
+        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
+    """
     return vmap(logistic_hessian, (0,0), 0)(X, pred_y)
 
 @jit
 def batched_logistic_loglikelihood(X, y, pred_y):
+    """Batched logistic log likelihood estimation
+
+    Perform SUM(
+        y * log(predicted_y + epsilon) + 
+        (1 - y) * log(1 - predicted_y + epsilon)
+    )
+
+    Args:
+        X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
+        y (np.ndarray[(1, 1), np.floating]): Batched vector.
+        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+
+    Returns:
+        np.ndarray[(1,), np.floating]: Batched vector.
+    """
     return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
         
 

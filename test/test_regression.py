@@ -174,10 +174,10 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_hessian(self):
-        pass
+        self.model.hessian(self.X).shape
 
     def test_loglikelihood(self):
-        pass
+        self.model.loglikelihood(self.X, self.y).shape
 
     
 
