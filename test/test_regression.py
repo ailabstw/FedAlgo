@@ -153,7 +153,8 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
 
     def test_predict(self):
         single_result = self.model.predict(self.X)
-        pmap_result = self.model.predict(self.X, acceleration='pmap')
+        self.model.acceleration = 'pmap'
+        pmap_result = self.model.predict(self.X)
         predicted_y = 1 / (1 + np.exp(-linalg.batched_mvmul(self.X, self.beta)))
         predicted_y = np.expand_dims(predicted_y, -1)
         np.testing.assert_array_almost_equal(predicted_y, single_result, decimal=5)
