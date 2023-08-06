@@ -738,9 +738,23 @@ def logistic_hessian(X, pred_y):
         pred_y (np.ndarray[(1, 1), np.floating]): Vector.
 
     Returns:
-        np.ndarray[(1, 1, 1), np.floating]: Matrix.
+        np.ndarray[(1, 1), np.floating]: Matrix.
     """
     return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
+
+@jit
+def logistic_inv_hessian(hessian):
+    """Logistic inverse hessian matrix
+
+    Calculate the inverse of hessian matrix
+
+    Args:
+        hessian (np.ndarray[(1, 1), np.floating]): Matrix.
+    
+    Return:
+        (np.ndarray[(1, 1), np.floating]): Matrix.
+    """
+    return jnp.linalg.inv(hessian)
 
 @jit
 def logistic_loglikelihood(X, y, pred_y):
@@ -823,6 +837,20 @@ def batched_logistic_hessian(X, pred_y):
     return vmap(logistic_hessian, (0,0), 0)(X, pred_y)
 
 @jit
+def batched_logistic_inv_hessian(hessian):
+    """Batched logistic inverse hessian matrix
+
+    Calculate the inverse of hessian matrix
+
+    Args:
+        hessian (np.ndarray[(1, 1, 1), np.floating]): Matrix.
+    
+    Return:
+        (np.ndarray[(1, 1, 1), np.floating]): Matrix.
+    """
+    return vmap(logistic_inv_hessian, 0, 0)(hessian)
+
+@jit
 def batched_logistic_loglikelihood(X, y, pred_y):
     """Batched logistic log likelihood estimation
 
@@ -840,6 +868,7 @@ def batched_logistic_loglikelihood(X, y, pred_y):
         np.ndarray[(1,), np.floating]: Batched vector.
     """
     return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
+    
         
 
 
