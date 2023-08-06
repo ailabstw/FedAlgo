@@ -2,7 +2,7 @@ import numpy as np
 import scipy.stats as stats
 from jax import jit, vmap, pmap
 from jax import numpy as jnp
-
+from jax import scipy as jsp
 from . import linalg, utils
 
 
@@ -79,6 +79,18 @@ def batched_unnorm_covariance(X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.nd
 def t_dist_pvalue(t_stat, df):
     return 2 * (1 - stats.t.cdf(np.abs(t_stat), df))
 
+# Logistic
+
+@jit
+def logistic_stats(beta, inv_hessian):
+    std = jnp.sqrt(inv_hessian.diagonal())
+    t_stat = beta/std
+    p_value = 1-jsp.stats.chi2.cdf(jnp.square(t_stat),1)
+    return t_stat, p_value
+
+@jit
+def batched_logistic_stats(beta, inv_hessian):
+    return vmap(logistic_stats, (0,0), (0,0))(beta, inv_hessian)
 
 # PCA
 
