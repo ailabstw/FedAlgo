@@ -9,21 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Set all batch axis to 0 
-- Batched regression done
+- Add batched logistic regression
+
+### Fixed
+
+- Set batch axis to 0 for all batch operations.
 
 ## [0.6.2]
 
 ### Added
 
-- Packaging 4 algorithms of PCA
+- Extract 4 interfaces for PCA algorithms
 - Add comparisons between plink, numpy and fed-svd
 
 ## [0.6.1]
 
-### Added
+### Fixed
 
-- Fit the requirement of PCA usecase in stepfl
+- Match the requirement of PCA usecase in stepfl
 
 
 ## [0.6.0]
