@@ -1,12 +1,10 @@
 from abc import ABCMeta
 
 import numpy as np
-import scipy.sparse.linalg as slinalg
 from jax import jit, vmap
 from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import random as jrand
-import logging
 
 from . import array, stats, project
 
@@ -262,7 +260,7 @@ def orthogonal_project(v, ortho, res):
         v (np.ndarray[(1,), np.floating]) : ith eigenvector to be orthogonalized
         ortho (list of np.ndarray[(1,), np.floating]): i-1 orthogonalized eigenvectors with shape (n,)
         res (np.ndarray[(1,), np.floating]): residuals with shape (i-1,)
-    
+
     Returns:
         (np.ndarray[(1,), np.floating]) : ith orthogonalized eigenvector
     """
@@ -326,14 +324,14 @@ def iteration_update(current_H, Hs, current_iteration, max_iterations):
 def init_H(m, k1):
     """Initial H matrix generation
 
-    Generate random H matrix with shape (m, k1), 
+    Generate random H matrix with shape (m, k1),
     where m and k1 represent m SNPs and k1 latent dimensions respectively.
     original randomized_svd_init_step in aggregator
 
     Args:
         m (int) : number of SNPs
         k1 (int) : latent dimensions of H matrix in SVD and must be <= n samples
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : random H matrix
     """
@@ -350,7 +348,7 @@ def update_local_H(A, G):
     Args:
         A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
         G (np.ndarray[(1,1), np.floating]) : randomly generated and orthonormalized G matrix in the 1st step or updated G matrix during iterations.
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : updated H matrix (m, k1)
     """
@@ -386,7 +384,7 @@ def update_local_G(A, H):
     Args:
         A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
         H (np.ndarray[(1,1), np.floating]) : global H matrix from aggregator with shape (m, k1)
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : update G matrix with shape (n, k1)
     """
@@ -398,15 +396,15 @@ def decompose_H_stack(Hs):
     """Stack H matrices from I iterations and decompose it
 
     Each H matrix is the updated H matrix during iterations.
-    The shape of stacked H matrix (Hs) is (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+    The shape of stacked H matrix (Hs) is (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
     and I iterations depending on the convergence status and max iterations.
     original decompose_H_stack_step in aggregator
 
     Args:
         Hs (list of np.ndarray[(1,1), np.floating]) : H matrices from iterations
-    
+
     Returns:
-        (np.ndarray[(1,1), np.floating]) : decomposed H matrix from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+        (np.ndarray[(1,1), np.floating]) : decomposed H matrix from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
                                            and I iterations depending on the convergence status and max iterations.
     """
     Hs = jnp.asarray(jnp.concatenate(Hs, axis=1))
@@ -423,9 +421,9 @@ def local_cov_matrix(A, H):
 
     Args:
         A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
-        H (np.ndarray[(1,1), np.floating]) : H matrix decomposed from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions 
+        H (np.ndarray[(1,1), np.floating]) : H matrix decomposed from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
                                              and I iterations depending on the convergence status and max iterations.
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
         (np.ndarray[(1,1), np.floating]) : the inner prodcut of proxy data matrix with shape (k1*I, k1*I) as the covariance matrix.
@@ -445,7 +443,7 @@ def decompose_cov_matrices(cov_matrices, k2):
         cov_matrices (list of np.ndarray[(1,1), np.floating]) : the covariance matrices collected from edges with shape (k1*I, k1*I) for each matrix,
                                                                 where k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
         k2 (int) : output latent dimensions of U matrix in SVD and must be <= k1*I.
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edges with shape (k1*I, k2)
     """
@@ -462,7 +460,7 @@ def local_G_from_proxy_matrix(P, U):
     Args:
         P (np.ndarray[(1,1), np.floating]) : proxy data matrix from edge with shape (k1*I, n)
         U (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edge with shape (k1*I, k2)
-    
+
     Returns:
         (np.ndarray[(1,1), np.floating]) : the G matrix with shape (n, k2)
     """
@@ -476,7 +474,7 @@ def init_orthonormalization(M):
 
     Args:
         M (np.ndarray[(1,1), np.floating]) : The eigenvectors should be placed vertically as M[:,i].
-    
+
     Returns:
         (np.floating) : the norm of the first partial eigenvector (the rest is distributed on different edges)
         (the list of np.ndarray[(1,), np.floating]) : the list used to store partial eigenvectors in the downstream orthonormalization process
@@ -502,7 +500,7 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
             return ('PASSED', True)
         else:
             return (f'FAILED\ninner product:\n{A}', False)
-    
+
     GT_orthonormal = _report(mmdot(GT,GT))
     SIM_orthonormal = _report(mmdot(SIM,SIM))
     concordance = _report(mmdot(GT,SIM))
@@ -513,7 +511,7 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
         Simulation Orthonormal: {SIM_orthonormal[0]}\n\
         Concordance between GT and SIM: {concordance[0]}\n\
         =============================================="
-    
+
     print(message)
 
     return (GT_orthonormal[1], SIM_orthonormal[1], concordance[1], message)
@@ -533,7 +531,7 @@ def federated_standardization(As, formated=False, edge_axis=None, sample_axis=No
     if not formated:
         shared_args = _get_shared_args(federated_standardization, locals())
         As = array.genotype_matrix_input_formatter(**shared_args)
-    
+
     # global mean without NAs
     local_sums, local_counts = [], []
     for edge_idx in range(len(As)):
@@ -620,8 +618,8 @@ def federated_randomized_svd(As, formated=False, edge_axis=None, sample_axis=Non
         As, Hs, local_Gs = federated_vertical_subspace_iteration(**kwargs)
     elif not formated or not transposed:
         As = array.genotype_matrix_input_formatter(transpose=True, **shared_args)
-    
-    # Get the projection matrix 
+
+    # Get the projection matrix
     GLOBAL_H = decompose_H_stack(Hs)
 
     # Form proxy data matrices to get proxy covariance matrices
@@ -636,7 +634,7 @@ def federated_randomized_svd(As, formated=False, edge_axis=None, sample_axis=Non
     for edge_idx in range(len(As)):
         g = local_G_from_proxy_matrix(Ps[edge_idx], GLOBAL_U)
         local_Gs[edge_idx] = g
-    
+
     return GLOBAL_H, local_Gs
 
 
@@ -659,7 +657,7 @@ def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis
     std_As = federated_standardization(**shared_args)
     std_As = array.genotype_matrix_input_formatter(std_As, 0, 1, 2, transpose=True)
     shared_args.update({'As':std_As, 'transposed':True})
-    
+
     # Vertical subspace iterations
     vsi_kwargs = {**shared_args, **_get_func_specific_args(federated_vertical_subspace_iteration, kwargs)}
     As, Hs, local_Gs = federated_vertical_subspace_iteration(**vsi_kwargs)
@@ -747,7 +745,7 @@ def logistic_loglikelihood(X, y, pred_y):
     """Logistic log likelihood estimation
 
     Perform SUM(
-        y * log(predicted_y + epsilon) + 
+        y * log(predicted_y + epsilon) +
         (1 - y) * log(1 - predicted_y + epsilon)
     )
 
@@ -827,7 +825,7 @@ def batched_logistic_loglikelihood(X, y, pred_y):
     """Batched logistic log likelihood estimation
 
     Perform SUM(
-        y * log(predicted_y + epsilon) + 
+        y * log(predicted_y + epsilon) +
         (1 - y) * log(1 - predicted_y + epsilon)
     )
 
@@ -840,10 +838,8 @@ def batched_logistic_loglikelihood(X, y, pred_y):
         np.ndarray[(1,), np.floating]: Batched vector.
     """
     return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
-    
-        
 
 
 
 
-    
+
