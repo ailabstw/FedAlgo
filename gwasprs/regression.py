@@ -237,7 +237,11 @@ class BatchedLogisticRegression(LinearModel):
         return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.BatchedCholeskySolver()):
-        return self.__beta + solver(hessian, gradient)
+        try:
+            return self.__beta + solver(hessian, gradient)
+        except:
+            solver = linalg.BatchedInverseSolver()
+            return self.__beta + solver(hessian, gradient)
     
 
 
