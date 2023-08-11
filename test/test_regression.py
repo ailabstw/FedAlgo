@@ -181,7 +181,7 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         self.model.loglikelihood(self.X, self.y)
     
     def test_inv_hessian(self):
-        linalg.batched_logistic_inv_hessian(self.model.hessian(self.X))
+        linalg.batched_inv(self.model.hessian(self.X))
 
     
 
