@@ -738,7 +738,7 @@ def logistic_hessian(X, pred_y):
         pred_y (np.ndarray[(1, 1), np.floating]): Vector.
 
     Returns:
-        np.ndarray[(1, 1, 1), np.floating]: Matrix.
+        np.ndarray[(1, 1), np.floating]: Matrix.
     """
     return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
 
@@ -840,6 +840,7 @@ def batched_logistic_loglikelihood(X, y, pred_y):
         np.ndarray[(1,), np.floating]: Batched vector.
     """
     return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
+    
         
 
 

@@ -2,7 +2,7 @@ from abc import ABCMeta
 
 import numpy as np
 from jax import numpy as jnp
-from jax import jit, vmap, pmap
+from jax import pmap
 
 from . import linalg, stats, utils
 
@@ -166,7 +166,7 @@ class LogisticRegression(LinearModel):
         self.__beta = beta
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        predicted_y = 1 / (1 + jnp.exp(-jnp.dot(X, self.__beta)))
+        predicted_y = linalg.logistic_predict(X, self.__beta)
         return jnp.expand_dims(predicted_y, -1)
 
     def fit(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
@@ -181,13 +181,10 @@ class LogisticRegression(LinearModel):
         return linalg.mvmul(X.T, self.residual(X, y))
 
     def hessian(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        predicted_y = self.predict(X)
-        return jnp.dot(jnp.multiply(X.T, (predicted_y * (1 - predicted_y)).T), X)
+        return linalg.logistic_hessian(X, self.predict(X))
 
     def loglikelihood(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        epsilon = jnp.finfo(float).eps
-        predicted_y = self.predict(X)
-        return jnp.sum(y * jnp.log(predicted_y + epsilon) + (1 - y) * jnp.log(1 - predicted_y + epsilon))
+        return linalg.logistic_loglikelihood(X, self.predict(X), y)
 
     def beta(self, gradient, hessian, solver=linalg.CholeskySolver()):
         # solver calculates H^-1 grad in faster way
@@ -195,15 +192,16 @@ class LogisticRegression(LinearModel):
 
 
 class BatchedLogisticRegression(LinearModel):
-    def __init__(self, beta=None) -> None:
+    def __init__(self, beta=None, acceleration="single") -> None:
         self.__beta = beta
+        self.acceleration = acceleration
 
-    def predict(self, X, acceleration="single"):
-        if acceleration == "single":
+    def predict(self, X):
+        if self.acceleration == "single":
             predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
             return jnp.expand_dims(predicted_y, -1)
         
-        elif acceleration == "pmap":
+        elif self.acceleration == "pmap":
             pmap_func = pmap(linalg.batched_logistic_predict, in_axes=(0,0), out_axes=0)
             ncores = utils.jax_cpu_cores()
             batch, nsample, ndims = X.shape
@@ -219,7 +217,7 @@ class BatchedLogisticRegression(LinearModel):
                 Y = np.concatenate((Y, Z), axis=0)
             return jnp.expand_dims(Y, -1)
         else:
-            raise ValueError(f"{acceleration} acceleration is not supported.")
+            raise ValueError(f"{self.acceleration} acceleration is not supported.")
     
     def fit(self, X, y):
         grad = self.gradient(X, y)
@@ -239,7 +237,11 @@ class BatchedLogisticRegression(LinearModel):
         return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.BatchedCholeskySolver()):
-        return self.__beta + solver(hessian, gradient)
+        try:
+            return self.__beta + solver(hessian, gradient)
+        except:
+            solver = linalg.BatchedInverseSolver()
+            return self.__beta + solver(hessian, gradient)
     
 
 
