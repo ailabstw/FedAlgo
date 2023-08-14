@@ -27,7 +27,7 @@ def cal_qc_client(
             for i in snp_list:
                 FF.write(f"{i}\n")
         extract_cmd = f"--extract \"{out_path}.common_snp_list\""
-        
+
     cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
     cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
     out, err = call_bash_cmd(cmd)
@@ -41,12 +41,12 @@ def cal_qc_client(
     # Get allele
     #HWE = HWE.drop(columns = ["ID", "A1", "AX"])
 
-    #FREQ = pd.read_csv(f"{out_path}.afreq", sep = "\t")
-    VMISS = pd.read_csv(f"{out_path}.vmiss", sep = "\s+")
+    #FREQ = pd.read_csv(f"{out_path}.afreq", sep = r"\t")
+    VMISS = pd.read_csv(f"{out_path}.vmiss", sep = r"\s+")
     OBS_CT = VMISS.OBS_CT.max()
-    #SMISS = pd.read_csv(f"{out_path}.smiss", sep = "\t")
+    #SMISS = pd.read_csv(f"{out_path}.smiss", sep = r"\t")
 
-    HET = pd.read_csv(f"{out_path}.het", sep = "\s+")
+    HET = pd.read_csv(f"{out_path}.het", sep = r"\s+")
     HET_HIST, bin_edges = np.histogram(HET.F, bins=HET_BIN, range=HET_RANGE)
     HET = HET.F.values
 
