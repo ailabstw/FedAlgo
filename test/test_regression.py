@@ -143,7 +143,7 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         binarize_2d = lambda batch: list(map(lambda x: 1 if x > 0.5 else 0, batch))
         self.y = np.array(list(map(binarize_2d, pred_y)))
         self.model = gwasprs.regression.BatchedLogisticRegression(self.beta)
-    
+
     def tearDown(self):
         self.n = None
         self.dim = None
@@ -159,11 +159,11 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         predicted_y = np.expand_dims(predicted_y, -1)
         np.testing.assert_array_almost_equal(predicted_y, single_result, decimal=5)
         np.testing.assert_array_almost_equal(predicted_y, pmap_result, decimal=5)
-    
+
     def test_fit(self):
         self.model.fit(self.X, self.y)
         self.assertTrue(True)
-    
+
     def test_residual(self):
         result = self.model.residual(self.X, self.y)
         ans = np.expand_dims(self.y, -1) - self.model.predict(self.X)
@@ -179,11 +179,25 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
 
     def test_loglikelihood(self):
         self.model.loglikelihood(self.X, self.y)
-    
+
     def test_inv_hessian(self):
         linalg.batched_inv(self.model.hessian(self.X))
 
-    
 
+class UtilsTestCase(unittest.TestCase):
 
-    
+    def setUp(self):
+        self.n = 111
+        self.dim = 13
+        self.batch_size = 3
+        self.X = np.random.rand(self.batch_size, self.n, self.dim)
+
+    def tearDown(self):
+        self.n = None
+        self.dim = None
+        self.model = None
+        self.X = None
+
+    def test_add_bias(self):
+        Y = gwasprs.regression.add_bias(self.X, axis=2)
+        self.assertEqual((self.batch_size, self.n, self.dim+1), Y.shape)

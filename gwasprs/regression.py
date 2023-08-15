@@ -200,7 +200,7 @@ class BatchedLogisticRegression(LinearModel):
         if self.acceleration == "single":
             predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
             return jnp.expand_dims(predicted_y, -1)
-        
+
         elif self.acceleration == "pmap":
             pmap_func = pmap(linalg.batched_logistic_predict, in_axes=(0,0), out_axes=0)
             ncores = utils.jax_cpu_cores()
@@ -218,21 +218,21 @@ class BatchedLogisticRegression(LinearModel):
             return jnp.expand_dims(Y, -1)
         else:
             raise ValueError(f"{self.acceleration} acceleration is not supported.")
-    
+
     def fit(self, X, y):
         grad = self.gradient(X, y)
         H = self.hessian(X)
         self.__beta = self.beta(grad, H)
-    
+
     def residual(self, X, y):
         return linalg.batched_logistic_residual(y, self.predict(X))
 
     def gradient(self, X, y):
         return linalg.batched_logistic_gradient(X, self.residual(X,y))
-    
+
     def hessian(self, X):
         return linalg.batched_logistic_hessian(X, self.predict(X))
-    
+
     def loglikelihood(self, X, y):
         return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
 
@@ -242,8 +242,10 @@ class BatchedLogisticRegression(LinearModel):
         except:
             solver = linalg.BatchedInverseSolver()
             return self.__beta + solver(hessian, gradient)
-    
 
 
-
-    
+def add_bias(X: np.ndarray, axis=1):
+    dims = list(X.shape)
+    dims[axis] = 1
+    bias = np.ones(dims)
+    return np.concatenate((bias, X), axis=axis)
