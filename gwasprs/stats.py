@@ -16,7 +16,7 @@ def sum_of_square(A, mean):
     Args:
         A (np.ndarray[(1, 1), np.floating]) : Genotype matrix with shape (samples, SNPs)
         mean (np.ndarray[(1,), np.floating]) : Vector
-    
+
     Returns:
         (np.ndarray[(1, 1), np.floating]) : modified A matrix
         (np.ndarray[(1,), np.floating]) : sum of square vector
@@ -58,17 +58,17 @@ def batched_unnorm_autocovariance(X: 'np.ndarray[(1, 1, 1), np.floating]', accel
     if acceleration == "single":
         return linalg.batched_mmdot(X, X)
     elif acceleration == "pmap":
-        pmap_func = pmap(linalg.batched_mmdot, in_axes = 3, out_axes = 3)
+        pmap_func = pmap(linalg.batched_mmdot, in_axes = 0, out_axes = 0)
         ncores = utils.jax_cpu_cores()
-        nsample, ndims, batch = X.shape
+        batch, nsample, ndims = X.shape
         minibatch, remainder = divmod(batch, ncores)
-        A = np.reshape(X[:, :, :(minibatch*ncores)], (nsample, ndims, minibatch, ncores))
-        Y = np.reshape(pmap_func(A, A), (ndims, ndims, -1))
+        A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
+        Y = np.reshape(pmap_func(A, A), (-1, ndims, ndims))
 
         if remainder != 0:
-            B = X[:, :, (minibatch*ncores):]
+            B = X[(minibatch*ncores):, :, :]
             Z = linalg.batched_mmdot(B, B)
-            Y = np.concatenate((Y, Z), axis=2)
+            Y = np.concatenate((Y, Z), axis=0)
         return Y
     else:
         raise ValueError(f"{acceleration} acceleration is not supported.")
@@ -123,7 +123,7 @@ def impute_and_local_mean(A, snp_mean):
     Args:
         A (np.ndarray[(1, 1), np.floating]) : Genotype matrix with shape (samples, SNPs)
         snp_mean (np.ndarray[(1,), np.floating]) : mean of SNP as a vector
-    
+
     Returns:
         (np.ndarray[(1, 1), np.floating]) : Imputed genotype matrix
         (np.ndarray[(1,), np.floating]) : sum of SNP as a vector
@@ -158,17 +158,17 @@ def aggregate_sums(local_sums, local_counts):
 
 def local_ssq(A, global_mean):
     """Calculate local sum of square
-    
+
     Make column-wise mean of A equal to 0 and calculate the column-wise sum of squares.
     original genotype_scaling_var_step
 
     Args:
         A (np.ndarray[(1, 1), np.floating]) : Imputed genotype matrix
         global_mean (np.ndarray[(1,), np.floating]) : global mean of SNP
-    
+
     Returns:
         (np.ndarray[(1, 1), np.floating]) : mean-shift genotype matrix
-        (np.ndarray[(1,), np.floating]) : sum of square 
+        (np.ndarray[(1,), np.floating]) : sum of square
     """
     A, ssq = _vectorize(sum_of_square, (1,0), (1,0))(
         A,
@@ -212,7 +212,7 @@ def standardize(A, global_var, deleted):
         A (np.ndarray[(1, 1), np.floating]) : Imputed genotype matrix with SNP mean=0
         global_var (np.ndarray[(1,), np.floating]) : global variance of SNP
         deleted (np.ndarray[(1,), np.floating]) : boolean vector for whose variance = 0
-    
+
     Returns:
         np.ndarray[(1, 1), np.floating]) : Standardized genotype matrix
     """
