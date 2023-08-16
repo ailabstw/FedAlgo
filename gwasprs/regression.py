@@ -88,7 +88,7 @@ class BatchedLinearRegression(LinearModel):
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
     """
 
-    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.BatchedCholeskySolver()) -> None:
+    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.BatchedCholeskySolver(), include_bias=False) -> None:
         if beta is None:
             if XtX is None or Xty is None:
                 raise ValueError("Must provide XtX and Xty, since beta is not provided.")
@@ -99,6 +99,8 @@ class BatchedLinearRegression(LinearModel):
             self.__beta = algo(XtX, Xty)
         else:
             self.__beta = beta
+
+        self.__include_bias = include_bias
 
     @property
     def coef(self):
@@ -113,7 +115,7 @@ class BatchedLinearRegression(LinearModel):
         Returns:
             int: _description_
         """
-        k = self.coef.shape[0]
+        k = self.coef.shape[-1] + self.__include_bias
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1, 1), np.floating]', acceleration="single"):
@@ -138,23 +140,23 @@ class BatchedLinearRegression(LinearModel):
             raise ValueError(f"{acceleration} acceleration is not supported.")
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', algo=linalg.BatchedCholeskySolver()):
+    def fit(cls, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', algo=linalg.BatchedCholeskySolver(), include_bias=False):
         if isinstance(algo, linalg.QRSolver):
             raise ValueError("QRSolver is not supported.")
 
         beta = algo(stats.batched_unnorm_autocovariance(X), stats.batched_unnorm_covariance(X, y))
-        return LinearRegression(beta = beta)
+        return BatchedLinearRegression(beta = beta, include_bias = include_bias)
 
     def residual(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
         return y - self.predict(X, acceleration=acceleration)
 
     def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
         res = self.residual(X, y, acceleration=acceleration)
-        return jnp.expand_dims(linalg.batched_vdot(res, res), -1)
+        return linalg.batched_vdot(res, res)
 
     def t_stats(self, sse, XtX, dof):
         XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = jnp.expand_dims(sse / dof, -1)
+        sigma_squared = jnp.expand_dims(jnp.expand_dims(sse / dof, -1), -1)
         vars = linalg.batched_diagonal(sigma_squared * XtXinv)
         std = jnp.sqrt(vars)
         t_stat = self.coef / std
