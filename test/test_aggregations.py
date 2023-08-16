@@ -30,3 +30,12 @@ class SumUpTestCase(unittest.TestCase):
         ans = 6.9
         self.assertEqual(ans, result)
 
+    def test_sum_of_list_of_numpy_arrays(self):
+        result = gwasprs.aggregations.SumUp()([self.A, self.B], [self.C, self.C])
+        ans = [self.A + self.C, self.B + self.C]
+        np.testing.assert_array_almost_equal(ans, result)
+
+    def test_sum_of_list_of_jax_arrays(self):
+        result = gwasprs.aggregations.SumUp()([jnp.array(self.A), jnp.array(self.B)], [jnp.array(self.C), jnp.array(self.C)])
+        ans = [jnp.array(self.A + self.C), jnp.array(self.B + self.C)]
+        np.testing.assert_array_almost_equal(ans, result)
