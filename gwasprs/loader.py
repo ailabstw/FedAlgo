@@ -374,12 +374,12 @@ class GWASData:
     @property
     def snp_table(self):
         assert 'rsID' in self.bim.columns
-        return create_snp_table(self.snp_id, self.original_snp_id)
+        return create_snp_table(self.snp_id, self.rsID)
 
     @property
     def autosome_snp_table(self):
         assert 'rsID' in self.bim.columns
-        return create_snp_table(self.autosome_snp_id, self.original_autosome_snp_id)
+        return create_snp_table(self.autosome_snp_id, self.autosome_rsID)
     
     @property
     def dropped_phenotype(self):
