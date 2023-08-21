@@ -1,51 +1,66 @@
-import sys, os
 import unittest
-import logging
 import numpy as np
+import pandas as pd
+import gwasprs
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/..')
+bfile_path = './data/test_bfile/hapmap1_100'
+cov_path = './data/test_bfile/hapmap1_100.cov'
+pheno_path = './data/test_bfile/hapmap1_100.pheno'
 
-from gwasprs.loader import GwasDataLoader, GwasSnpIterator
-
-logging.basicConfig(level=logging.DEBUG)
-
-data_path = os.path.dirname(os.path.realpath(__file__))+'/../data'
-
-class BedReaderTestCase(unittest.TestCase):
+class GWASData_Standard_TestCase(unittest.TestCase):
 
     def setUp(self):
-        self.bed_path = f"{data_path}/test_bfile/hapmap1_100"
-        #self.bed_path = "/mnt/prsdata/prs-data/Test/Data/DEMO_REG/demo_hg38"
-        #self.bed_path = "/volume/prsdata/Genotype/CLU/CLU_1659678698255"
+        # General data
+        self.bed = gwasprs.loader.read_bed(bfile_path)
+        self.bim = gwasprs.loader.read_bim(bfile_path)
+        fam = gwasprs.loader.read_fam(bfile_path)
+        self.fam = gwasprs.loader.format_fam(fam, pheno_path, 'pheno')
+        cov = gwasprs.loader.read_cov(cov_path)
+        self.cov = gwasprs.loader.format_cov(cov, self.fam)
+
+        # GWASData object
+        self.gwasdata = gwasprs.loader.read_gwasdata(bfile_path, cov_path, pheno_path, 'pheno')
 
     def tearDown(self):
-        self.bed_path = None
+        self.bed = None
+        self.bim = None
+        self.fam = None
+        self.cov = None
+        self.gwasdata = None
+    
+    def test_data_formation(self):
+        self.gwasdata.subset()
+        pd.testing.assert_frame_equal(self.fam, self.gwasdata.fam)
+        pd.testing.assert_frame_equal(self.bim, self.gwasdata.bim)
+        pd.testing.assert_frame_equal(self.cov, self.gwasdata.covariate)
+        np.testing.assert_allclose(self.bed.read(), self.gwasdata.GT, equal_nan=True)
 
-    def test_reader(self):
+    def test_drop_missing_samples(self):
+        missing_idx = list(set(gwasprs.loader.get_mask_idx(self.fam)).union(gwasprs.loader.get_mask_idx(self.cov)))
+        keep_idx = list(set(self.fam.index).difference(missing_idx))
+        self.fam = self.fam.iloc[keep_idx,:].reset_index(drop=True)
+        self.cov = self.cov.iloc[keep_idx,:].reset_index(drop=True)
+        # self.GT = self.bed.read()[keep_idx,:]
+        
+        self.gwasdata.subset()
+        self.gwasdata.drop_missing_samples()
 
-        gwas_data_loader = GwasDataLoader(self.bed_path)
-        gwas_data_loader.read_in()
-        BED = gwas_data_loader.get_geno()
-        COV = gwas_data_loader.get_cov()
+        pd.testing.assert_frame_equal(self.fam, self.gwasdata.fam)
+        pd.testing.assert_frame_equal(self.cov, self.gwasdata.covariate)
+        # np.testing.assert_allclose(self.GT, self.gwasdata.GT, equal_nan=True)
 
-        idx_list = np.s_[2:32,5:20]
-        GT = BED.read(index=idx_list)
-        logging.info( GT.shape )
-        logging.info( COV.shape )
+    def test_standard(self):
+        missing_idx = list(set(gwasprs.loader.get_mask_idx(self.fam)).union(gwasprs.loader.get_mask_idx(self.cov)))
+        keep_idx = list(set(self.fam.index).difference(missing_idx))
+        self.fam = self.fam.iloc[keep_idx,:].reset_index(drop=True)
+        self.cov = self.cov.iloc[keep_idx,:].reset_index(drop=True)
+        # self.GT = self.bed.read()[keep_idx,:]
 
-    def test_iterator(self):
+        self.gwasdata.standard()
 
-        gwas_data_loader = GwasDataLoader(self.bed_path)
-        gwas_data_loader.read_in()
-        gwas_snp_iter = GwasSnpIterator(gwas_data_loader, batch_size=32)
+        pd.testing.assert_frame_equal(self.fam, self.gwasdata.fam)
+        pd.testing.assert_frame_equal(self.cov, self.gwasdata.covariate)
+        # np.testing.assert_allclose(self.GT, self.gwasdata.GT, equal_nan=True)
 
-        GT, BIM = next(gwas_snp_iter)
-        logging.info(f"IterGenoStep for {gwas_snp_iter.cc}/{len(gwas_snp_iter)}")
-
-
-# cd /yilun/CODE/fed-algo
-# python3 -m unittest test.test_loader 
-
-# nosetests /yilun/CODE/fed-algo/test/main.py
-
-
+class GWASData_UnmatchedSamples_TestCase(unittest.TestCase):
+    pass

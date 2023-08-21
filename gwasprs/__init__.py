@@ -1,5 +1,5 @@
 from .loader import (
-    GwasDataLoader, GwasSnpIterator, GwasIndIterator,
+    GWASData, GwasDataLoader, GwasSnpIterator
 )
 from .array import (
     concat, impute_with,
@@ -24,5 +24,6 @@ from .qc import (
     filter_snp, cal_het_sd
 )
 from . import aggregations, project
+# from . import prs
 
 

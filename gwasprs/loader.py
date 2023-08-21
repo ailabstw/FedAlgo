@@ -5,7 +5,404 @@ import logging
 import numpy as np
 from bed_reader import open_bed
 
-from .utils import rename_snp, AUTOSOME_LIST
+AUTOSOME_LIST = ()
+for i in range(1,23):
+    AUTOSOME_LIST += (i, str(i), f'chr{i}')
+
+def read_bed(bfile_path):
+    return open_bed(f'{bfile_path}.bed')
+
+def read_fam(bfile_path):
+    FAM = pd.read_csv(f'{bfile_path}.fam', sep='\s+', header=None)
+    FAM.columns = ['FID','IID','P','M','SEX','PHENO1']
+    FAM.FID = FAM.FID.astype(str)
+    FAM.IID = FAM.IID.astype(str)
+    return FAM
+
+def read_bim(bfile_path):
+    BIM = pd.read_csv(f'{bfile_path}.bim', sep='\s+', header=None)
+    BIM.columns = ['CHR','ID','cM','POS','A1','A2']
+    BIM.A1 = BIM.A1.astype(str).replace('0','.')
+    BIM.A2 = BIM.A2.astype(str).replace('0','.')
+    BIM.ID = BIM.ID.astype(str)
+    return BIM
+
+def read_cov(cov_path):
+    sep = ',' if '.csv' in cov_path else '\s+'
+    COV = pd.read_csv(cov_path, sep=sep)
+    COV.FID = COV.FID.astype(str)
+    COV.IID = COV.IID.astype(str)
+    COV = COV.drop_duplicates(subset = ['FID','IID'])
+    return COV
+
+def read_pheno(pheno_path, pheno_name):
+    sep = ',' if '.csv' in pheno_path else '\s+'
+    PHENO = pd.read_csv(pheno_path, sep=sep)
+    PHENO = PHENO[['FID','IID',pheno_name]]
+    PHENO.columns = ['FID','IID','PHENO1']
+    PHENO.FID = PHENO.FID.astype(str)
+    PHENO.IID = PHENO.IID.astype(str)
+    return PHENO
+
+def read_snp_list(snp_list_path):
+    """
+    Read a snp list from a given path.
+    """
+    SNP_df = pd.read_csv(snp_list_path, sep='\s+', header=None)
+    SNP_df.columns = ['ID']
+    return SNP_df
+
+def read_ind_list(ind_list_path):
+    """
+    Read a sample list from a given path.
+    """
+    IND_df = pd.read_csv(ind_list_path, sep='\s+', header=None).iloc[:,:2]
+    IND_df.columns = ['FID','IID']
+    return IND_df
+
+def format_cov(COV, FAM):
+    """
+    Read covarities from a given path and map to the corresponding FAM file.
+    """
+    # the samples in .fam missing covariate values will fill with NaNs
+    return FAM[['FID','IID']].merge(COV, on=['FID','IID'], how='left', sort=False)
+
+def format_fam(FAM, pheno_path=None, pheno_name=None):
+    """
+    Replace the FAM file with the corresponding pheno file.
+    """
+    if pheno_path is not None:
+        PHENO = read_pheno(pheno_path, pheno_name)
+        FAM.drop(columns='PHENO1', inplace=True)
+        # the samples in .fam missing phenotypes values will fill with NaNs
+        FAM = FAM.merge(PHENO, on=['FID','IID'], how='left', sort=False)
+    return FAM
+
+def get_mask_idx(df):
+    """
+    Get the index of missing values in a dataframe.
+    """
+    mask_miss1 = df.isnull().any(axis=1)
+    mask_miss2 = (df == (-9 or -9.0)).any(axis=1)
+    return df[mask_miss1 | mask_miss2].index
+
+def impute_cov(COV):
+    # nanmean imputation
+    col_means = COV.iloc[:,2:].mean()
+    COV.fillna(col_means, inplace=True)
+    return COV
+
+def create_unique_snp_id(BIM, to_byte=True, to_dict=False):
+    """
+    Create the unique ID as CHR:POS:A1:A2
+    If the A1 and A2 are switched, record the SNP index for adjusting the genptype values (0 > 2, 2 > 0).
+    """
+    unique_id, sorted_snp_idx = [], []
+    for line in BIM.iterrows():
+        CHR = str(line[1]['CHR'])
+        POS = str(line[1]['POS'])
+        ALLELE = [str(line[1]['A1'])[:23], str(line[1]['A2'])[:23]]
+        ALLELE_sorted = sorted(ALLELE)
+        unique_id.append(f"{CHR}:{POS}:{ALLELE_sorted[0]}:{ALLELE_sorted[1]}")
+        if ALLELE != ALLELE_sorted:
+            sorted_snp_idx.append(line[0])
+    if to_byte:
+        unique_id = np.array(unique_id, dtype="S")
+    if to_dict:
+        unique_id = dict(zip(unique_id, BIM.ID))
+    return unique_id, sorted_snp_idx
+
+def redirect_genotype(GT, snp_idx):
+    GT[:, snp_idx] = 2 - GT[:, snp_idx]
+    return GT
+
+def dropped_info(data, subset, cols):
+    data_id = list(zip(*data[cols].to_dict('list').values()))
+    subset_id = list(zip(*subset[cols].to_dict('list').values()))
+    dropped_idx = [idx for idx, id in enumerate(data_id) if id not in subset_id]
+    return data.iloc[dropped_idx,:]
+
+def update_dropped(prev, update):
+    return pd.concat([prev, update]).reset_index(drop=True)
+        
+def subset_samples(sample_list:(str, list, tuple), data, order=False, list_is_idx=False):
+    """
+    Args:
+        sample_list (str, list, tuple) : could be a list of sample IDs, a path to sample list file or a list of sample indices.
+        data (pd.DataFrame) : the data to be extracted.
+    
+    Returns:
+        subset_data (pd.DataFrame) : the subset of the data (the index of the subset_data has been reset)
+        sample_idx : the indices of sample list in "data", not the indices in "subset_data".
+        dropped_data (pd.DataFrame) : the dropped subset.
+    """
+    # Format sample list
+    if isinstance(sample_list, str):
+        sample_df = read_ind_list(sample_list)
+    elif isinstance(sample_list, (tuple, list)) and not list_is_idx:
+        sample_df = pd.DataFrame({'FID':sample_list,'IID':sample_list})
+    else:
+        sample_df = data.iloc[sample_list,:2].reset_index(drop=True)
+
+    # Follow the order in the ind_list
+    if order:
+        subset_data = sample_df.merge(data, on=['FID','IID'])
+    else:
+        subset_data = data.merge(sample_df, on=['FID','IID'])
+
+    if len(subset_data) == 0:
+        raise IndexError
+    
+    # Get the indices of samples in original data for getting the ordered genotype matrix.
+    sample_idx = subset_data.merge(data.reset_index())['index'].to_list()
+
+    # Dropped data
+    dropped_data = dropped_info(data, subset_data, ['FID','IID'])
+    
+    return subset_data, sample_idx, dropped_data
+
+def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=False):
+    """
+    Args:
+        snp_list (str, list, tuple) : could be a list of SNP IDs, a path to snp list file or a list of snp indices.
+        data (pd.DataFrame) : the data to be extracted.
+    
+    Returns:
+        subset_data (pd.DataFrame) : the subset of the data (the index of the subset_data has been reset)
+        snp_idx : the indices of snp list in "data", not the indices in "subset_data".
+        dropped_data (pd.DataFrame) : the dropped subset.
+    """
+    # Format SNP list
+    if isinstance(snp_list, str):
+        snp_df = read_snp_list(snp_list)
+    elif isinstance(snp_list, (tuple, list)) and not list_is_idx:
+        snp_df = pd.DataFrame({'ID':snp_list})
+    else:
+        snp_df = data.iloc[snp_list,1].reset_index(drop=True)
+    
+    # Follow the order of the snp_list
+    if order:
+        subset_snps = snp_df.merge(data, on=['ID'])
+    else:
+        subset_snps = data.merge(snp_df, on=['ID'])
+    
+    if len(subset_snps) == 0:
+        raise IndexError
+    
+    # Get the indices of snps in original data for getting the ordered genotype matrix.
+    snp_idx = subset_snps.merge(data.reset_index())['index'].to_list()
+
+    # Dropped data
+    dropped_data = dropped_info(data, subset_snps, ['ID'])
+
+    return subset_snps, snp_idx, dropped_data
+
+def index_non_missing_samples(FAM, COV=None):
+    """
+    Index samples without any missing values in FAM, pheno, or covariates.
+    """
+    FAM_rm_idx = set(get_mask_idx(FAM))
+    if COV is not None:
+        COV_rm_idx = get_mask_idx(COV)
+        rm_sample_idx = FAM_rm_idx.union(COV_rm_idx)
+    else:
+        rm_sample_idx = FAM_rm_idx
+    keep_ind_idx = set(FAM.index).difference(rm_sample_idx)
+
+    return list(keep_ind_idx)
+
+def create_snp_table(snp_id_list, rs_id_list):
+    """
+    Create the mapping table that unique IDs can be mapped to the rsIDs.
+    """
+    snp_id_table = {}
+    for i in range(len(snp_id_list)):
+        snp_id = snp_id_list[i]
+        if snp_id not in snp_id_table:
+            snp_id_table.setdefault(snp_id, rs_id_list[i])
+
+    return list(snp_id_table.keys()), snp_id_table
+
+class GWASData:
+    """
+    The GWASData performs three main operations, subsect extraction, dropping samples with missing values
+    and add unique position ID for each SNP.
+
+    subset()
+        This function allows multiple times to extract the subset with the given sample list and SNP list.
+        ex. subset(sample_list1)
+                    :
+            subset(sample_list9)
+
+        Limitations: If the sample list is an index list, and the SNP list is not, \
+                     please do it in two steps, the first step can be subset(sample_list, list_is_idx), \
+                     the second step can be subset(snp_list). Switching the order is fine.
+                     Similar situation is the same as `order`.
+
+        Args:
+            sample_list (optional, str, tuple, list, default=None) : Allows the path to the snp list, a list of sample IDs or a list of sample indices. \
+                                                                     Note that the np.array dtype is not supported. The default is return the whole samples.
+
+            snp_list (optional, str, tuple, list, default=None)    : Allows the path to the SNP list, a list of SNP IDs or a list of SNP indices. \
+                                                                     Note that the np.array dtype is not supported. The default is return the whole SNPs.
+
+            order (boolean, default=False) : Determines the sample and snp order in fam, bim, cov and genotype. \
+                                             If True, the order follows the given sample/snp list.
+
+            list_is_idx (boolean, default=False) : If the `sample_list` or the `snp_list` are indices, this parameter should be specified as True.
+
+        Returns:
+            Subset of fam (pd.DataFrame)
+            Subset of cov (pd.DataFrame)
+            Subset of bim (pd.DataFrame)
+            Subset of genotype (np.ndarray)
+            dropped_fam (pd.DataFrame)
+            dropped_cov (pd.DataFrame)
+            dropped_bim (pd.DataFrame)
+
+    
+    drop_missing_samples():
+        Drop samples whose phenotype or covariates contain missing values ('', NaN, -9, -9.0).
+
+        Returns:
+            Subset of fam (pd.DataFrame) : samples without missing values
+            Subset of cov (pd.DataFrame) : samples without missing values
+            dropped_fam (pd.DataFrame) : samples with missing values
+            dropped_cov (pd.DataFrame) : samples with missing values
+
+
+    add_unique_snp_id():
+        Add the unique IDs for each SNP.
+
+        Returns:
+            bim : With unique IDs and rsIDs
+            genotype : If the A1 and A2 are switched, snp array = 2 - snp array
+    """
+    def __init__(self, bed, fam, bim, cov):
+        self.__dict__.update(locals())
+        self.__dict__.update({f'dropped_{data}':pd.DataFrame() for data in ['fam', 'bim', 'cov']})
+        self.GT = self.bed.read()
+
+    def standard(self):
+        self.subset()
+        self.drop_missing_samples()
+        self.add_unique_snp_id()
+    
+    def custom(self, **kwargs):
+        self.subset(**kwargs)
+
+        if kwargs.get('impute_cov') is True:
+            self.impute_covariates()
+
+        self.drop_missing_samples()
+
+        if kwargs.get('add_unique_snp_id') is True:
+            self.add_unique_snp_id()
+
+    def subset(self, sample_list=None, snp_list=None, order=False, list_is_idx=False):
+        # Sample information
+        if sample_list:
+            self.fam, sample_idx, dropped_fam = subset_samples(sample_list, self.fam, order, list_is_idx)
+            self.dropped_fam = update_dropped(self.dropped_fam, dropped_fam)
+
+            if self.cov is not None:
+                self.cov, _, dropped_cov = subset_samples(sample_list, self.cov, order, list_is_idx)
+                self.dropped_cov = update_dropped(self.dropped_cov, dropped_cov)
+        else:
+            sample_idx = list(self.fam.index)
+
+        # SNP information
+        if snp_list:
+            self.bim, snp_idx, dropped_bim = subset_snps(snp_list, self.bim, order, list_is_idx)
+            self.dropped_bim = update_dropped(self.dropped_bim, dropped_bim)
+        else:
+            snp_idx = list(self.bim.index)
+
+        # Genotype information
+        self.GT = self.GT[np.ix_(sample_idx, snp_idx)]
+
+    def impute_covariates(self):
+        self.cov = impute_cov(self.cov)
+
+    def drop_missing_samples(self):
+        # Re-subset the samples without any missing values
+        sample_idx = index_non_missing_samples(self.fam, self.cov)
+        self.subset(sample_list=sample_idx, list_is_idx=True)
+
+    def add_unique_snp_id(self):
+        unique_id, sorted_snp_idx = create_unique_snp_id(self.bim, to_byte=False, to_dict=False)
+        self.bim['rsID'] = self.bim['ID']
+        self.bim['ID'] = unique_id
+        self.GT = redirect_genotype(self.GT, sorted_snp_idx)
+
+    @property
+    def phenotype(self):
+        return self.fam
+    
+    @property
+    def sample_id(self):
+        return list(zip(self.fam.FID, self.fam.IID))
+    
+    @property
+    def covariate(self):
+        return self.cov
+    
+    @property
+    def snp_id(self):
+        return list(self.bim.ID)
+    
+    @property
+    def autosome_snp_id(self):
+        return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].ID)
+    
+    @property
+    def rsID(self):
+        return list(self.bim.rsID)
+    
+    @property
+    def autosome_rsID(self):
+        return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].rsID)
+    
+    @property
+    def allele(self):
+        return list(zip(self.bim.A1, self.bim.A2))
+    
+    @property
+    def genotype(self):
+        return self.GT
+    
+    @property
+    def snp_table(self):
+        assert 'rsID' in self.bim.columns
+        return create_snp_table(self.snp_id, self.original_snp_id)
+
+    @property
+    def autosome_snp_table(self):
+        assert 'rsID' in self.bim.columns
+        return create_snp_table(self.autosome_snp_id, self.original_autosome_snp_id)
+    
+    @property
+    def dropped_phenotype(self):
+        return self.dropped_fam
+    
+    @property
+    def dropped_covariate(self):
+        return self.dropped_cov
+    
+    @property
+    def dropped_snp(self):
+        return self.dropped_bim
+
+
+def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+    bed = read_bed(bfile_path)
+    fam = read_fam(bfile_path)
+    fam = format_fam(fam, pheno_path, pheno_name)
+    bim = read_bim(bfile_path)
+    cov = read_cov(cov_path)
+    cov = format_cov(cov, fam)
+    return GWASData(bed, fam, bim, cov)
+
 
 
 
@@ -25,16 +422,7 @@ class GwasDataLoader():
         '''
         Read GWAS data
         '''
-        self.bed_path = bed_path
-        self.pheno_path = pheno_path
-        self.pheno_name = pheno_name
-        self.cov_path = cov_path
-        self.snp_list = snp_list
-        self.ind_list = ind_list
-        
-        self.mean_fill_na_flag = mean_fill_na_flag
-        self.read_all_gt_flag = read_all_gt_flag
-        self.rename_snp_flag = rename_snp_flag
+        self.__dict__.update(locals())
 
         # init value
         self.BED = None
@@ -50,26 +438,34 @@ class GwasDataLoader():
     def read_in(self):
         logging.info(f"Start read file")
 
-        self.BED = self._read_bed()
-        self.FAM = self._read_fam()
-        self.BIM = self._read_bim()
-        if self.cov_path and os.path.exists(str(self.cov_path)): 
-            self.COV = self._read_cov()
-        if self.pheno_path and os.path.exists(str(self.pheno_path)):
-            self._read_pheno()
+        self.BED = read_bed(self.bed_path)
+        fam = read_fam(self.bed_path)
+        self.FAM = format_fam(fam, self.pheno_path, self.pheno_name)
+        self.BIM = read_bim(self.bed_path)
+        if self.cov_path and os.path.exists(str(self.cov_path)):
+            cov = read_cov(self.cov_path) 
+            self.COV =  format_cov(cov, self.FAM)
+            if self.mean_fill_na_flag:
+                self.COV = impute_cov(self.COV)
             
         # filter
         if self.snp_list:
-            self.snp_idx_list = self._read_snp_list()
+            _, self.snp_idx_list, __ = subset_snps(self.snp_list, self.BIM)
         else:
-            self.snp_idx_list = list(range(len(self.BIM.index)))
+            self.snp_idx_list = list(self.BIM.index)
         if self.ind_list:
-            self.ind_idx_list = self._read_ind_list()
+            _, self.ind_idx_list, __ = subset_samples(self.ind_list, self.FAM)
         else:
-            self.ind_idx_list = set(range(len(self.FAM.index)))
+            self.ind_idx_list = list(self.FAM.index)
 
-        self._check_pheno_missing()
-        self._filter()
+        self.ind_idx_list = index_non_missing_samples(self.FAM, self.COV)
+        self.FAM, _, __ = subset_samples(self.ind_idx_list, self.FAM, list_is_idx=True)
+        self.COV, _, __ = subset_samples(self.ind_idx_list, self.COV, list_is_idx=True)
+        self.BIM, _, __ = subset_snps(self.snp_idx_list, self.BIM, list_is_idx=True)
+        if self.rename_snp_flag:
+            new_snp_id = create_unique_snp_id(self.BIM, to_byte=False, to_dict=False)[0]
+            self.BIM['Original_ID'] = self.BIM['ID']
+            self.BIM['ID'] = new_snp_id
         self.read_in_flag = True
     
     
@@ -118,18 +514,7 @@ class GwasDataLoader():
         assert self.rename_snp_flag
         snp_list_ori = self.get_snp(autosome_only=autosome_only) 
         snp_list_old = self.get_old_snp(autosome_only=autosome_only)
-        # remove dup
-        if dedup:
-
-            snp_id_table = {}
-            snp_list = []
-            for i in range(len(snp_list_ori)):
-                snp = snp_list_ori[i]
-                if snp not in snp_id_table:
-                    snp_id_table[snp] = snp_list_old[i]
-                    snp_list.append(snp)
-
-        return np.array(snp_list), snp_id_table
+        return create_snp_table(snp_list_ori, snp_list_old)
 
     def get_allele(self):
         return self.BIM.A1.values, self.BIM.A2.values
@@ -148,167 +533,6 @@ class GwasDataLoader():
                 COV = np.ones((ll,1), dtype = np.float32)
 
         return COV
-
-
-    ####### HELPERS #######
-    def _read_bed(self):
-        BED = open_bed(f"{self.bed_path}.bed")
-        logging.info(f"BED file: {self.bed_path}.bed")
-        return BED
-
-    def _read_fam(self):
-        FAM = pd.read_csv(f"{self.bed_path}.fam", sep = '\s+', header = None)
-        FAM.columns = ["FID","IID","P","M","SEX","PHENO1"]
-        FAM.FID = FAM.FID.astype(str)
-        FAM.IID = FAM.IID.astype(str)
-        logging.debug(f"FAM file: {self.bed_path}.fam")
-        self.raw_ind_num = len(FAM.index)
-        return FAM
-
-    def _read_bim(self):
-        BIM = pd.read_csv(f"{self.bed_path}.bim", sep = '\s+', header = None)
-        BIM.columns = ["CHR","ID","cM","POS","A1","A2"]
-        BIM.A1 = BIM.A1.astype(str).replace("0",".")
-        BIM.A2 = BIM.A2.astype(str).replace("0",".")
-        BIM.ID = BIM.ID.astype(str)
-        logging.debug(f"BIM file: {self.bed_path}.bim")
-        self.raw_snp_num = len(BIM.index)
-        
-        return BIM
-
-    def _read_cov(self):
-        sep = '\s+'
-        if '.csv' in self.cov_path:
-            sep = ','
-        COV = pd.read_csv(self.cov_path, sep = sep)
-        # align to fam
-        COV.FID = COV.FID.astype(str)
-        COV.IID = COV.IID.astype(str)
-        COV = COV.drop_duplicates(subset = ["FID","IID"])
-        COV = self.FAM[["FID","IID"]].merge(COV, on = ["FID","IID"], how = 'left', sort = False)
-        COV = COV.reset_index(drop = True)
-        # fill with na
-        if self.mean_fill_na_flag:
-            for col in COV.columns[2:]:
-                x = COV[col]
-                col_mean = np.nanmean(col, axis = 0)
-                na_idx = np.where(np.isnan(x))
-                x[na_idx] = np.take(col_mean, na_idx[1])
-                COV[col] = x
-
-        logging.info(f"COV file: {self.cov_path}")
-        cov_names = ','.join(COV.columns[2:])
-        logging.info(f"COV name: {cov_names}")
-        return COV
-
-    def _read_pheno(self):
-        sep = '\s+'
-        if '.csv' in self.pheno_path:
-            sep = ','
-        PHENO = pd.read_csv(self.pheno_path, sep = sep)
-        PHENO = PHENO[["FID","IID", self.pheno_name]]
-        PHENO.columns = ["FID","IID", "PHENO1"]
-        PHENO.FID = PHENO.FID.astype(str)
-        PHENO.IID = PHENO.IID.astype(str)
-        # align to fam
-        self.FAM = self.FAM.drop(columns = "PHENO1")
-        self.FAM = self.FAM.merge(PHENO, on = ["FID","IID"], how = 'left', sort = False)
-        self.FAM = self.FAM.reset_index(drop = True)
-        logging.info(f"PHENO file: {self.pheno_path}")
-
-    def _read_snp_list(self, odered_flag = False):
-        if isinstance(self.snp_list, str):
-            logging.info(f"SNP list: {self.snp_list}")
-            SNP = pd.read_csv(self.snp_list, sep = '\s+', header = None)
-        elif isinstance(self.snp_list, list):
-            tmp_file = f"{self.bed_path}.tmp_snp_list"
-            with open(tmp_file, 'w') as FF:
-                for i in self.snp_list:
-                    FF.write(f"{i}\n")
-            SNP = pd.read_csv(tmp_file, sep = '\s+', header = None)
-
-        if odered_flag:
-            DA = self.BIM.loc[:,["ID"]].copy()
-            DA["INDEX"] = DA.index
-            DA = DA.set_index("ID", drop = False)
-            SNP = SNP.loc[SNP[0].isin(DA.ID)]
-            snp_idx_list = DA.loc[SNP[0], "INDEX"].values            
-
-        else:
-            snp_idx_list = self.BIM[self.BIM.ID.isin(SNP[0])].index
-
-        if len(snp_idx_list) == 0:
-            logging.error("No SNP left after ind_list filter")
-            raise IndexError
-
-        logging.info(f"Read {len(SNP.index)} snps")
-        return snp_idx_list
-
-    def _read_ind_list(self):
-        if isinstance(self.ind_list, str):
-            IND = pd.read_csv(self.ind_list, sep = '\s+', header = None)
-            logging.info(f"IND list: {self.ind_list}")
-        elif isinstance(self.ind_list, list):
-            tmp_file = f"{self.bed_path}.tmp_ind_list"
-            with open(tmp_file, 'w') as FF:
-                for i in self.ind_list:
-                    FF.write(f"{i},{i}\n")
-            IND = pd.read_csv(tmp_file, sep = '\s+', header = None)
-
-        if len(IND.columns) > 2:
-            IND = IND.iloc[:,:2]
-        IND.columns = ["FID", "IID"]
-        
-        self.FAM["INDEX"] = self.FAM.index
-        ind_idx_list = self.FAM.merge(IND, on = ["FID", "IID"], sort = False).loc[:,"INDEX"].values
-        self.FAM = self.FAM.drop(columns="INDEX")
-        
-        if len(ind_idx_list) == 0:
-            logging.error("No individual left after ind_list filter")
-            raise IndexError
-        logging.info(f"Read {len(IND.index)} individuals")
-        return set(ind_idx_list)
-
-    def _check_pheno_missing(self):
-        rm_count = 0
-        bad_ind_idx = set()
-        
-        if self.COV is not None:
-            bad_ind_idx0 = self.COV.loc[self.COV.isnull().any(axis=1)].index
-            bad_ind_idx1 = self.COV.loc[(self.COV == -9 ).any(axis=1)| \
-                (self.COV == -9.0 ).any(axis=1)].index
-            if len(bad_ind_idx1) > 0:
-                logging.warning(f"-9 is found in cov column, which may be ambiguous in quantitative covariate. \
-                    Suggested to change it as NaN. We will regard it as missing for now")
-                bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
-
-            rm_count += len(bad_ind_idx0)
-            bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
-        
-        bad_ind_idx0 = self.FAM.loc[self.FAM.PHENO1.isnull()].index
-        bad_ind_idx1 = self.FAM.loc[(self.FAM.PHENO1 == -9 )| (self.FAM.PHENO1 == -9.0 )].index
-        if len(bad_ind_idx1) > 0:
-            logging.warning(f"-9 is found in fam PHENO column, which may be ambiguous in quantitative pheno. \
-                Suggested to change it as NaN. We will regard it as missing for now")
-            bad_ind_idx0 = bad_ind_idx0.union(set(bad_ind_idx1))
-
-        rm_count += len(bad_ind_idx0)
-        bad_ind_idx = bad_ind_idx.union(set(bad_ind_idx0))
-        logging.warning(f"{rm_count} individuals to be remove due to missing value in pheno or covaraite")
-        
-        self.ind_idx_list = self.ind_idx_list.difference(bad_ind_idx)
-        
-    def _filter(self):
-        self.FAM = self.FAM.iloc[list(self.ind_idx_list)]
-        self.BIM = self.BIM.iloc[self.snp_idx_list]
-        if self.COV is not None:
-            self.COV = self.COV.iloc[list(self.ind_idx_list)]
-
-        if self.rename_snp_flag:
-            new_snp_list = rename_snp(self.BIM, to_byte = False, to_dict = False)
-            self.BIM["Original_ID"] = self.BIM.ID
-            self.BIM.ID = new_snp_list
-
 
 
 
@@ -462,4 +686,3 @@ class GwasIndIterator():
         self._end += self.batch_size
         self._end = min(self._end, self.ind_num)
         self.cc += 1
-
