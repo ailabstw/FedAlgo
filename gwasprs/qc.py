@@ -1,8 +1,9 @@
+from warnings import warn
+from typing import List, Tuple
+
 import pandas as pd
 import numpy as np
-from typing import List, Tuple
 import numpy.typing as npt
-
 
 from .utils import call_bash_cmd
 from .setup import setup_plink2
@@ -14,6 +15,7 @@ PLINK2_PATH = setup_plink2()
 
 def cal_qc_client(bfile_path: str, out_path: str, snp_list: List[str],
         het_bin: int, het_range: Tuple[float, float]):
+    warn('cal_qc_client is deprecated.', DeprecationWarning, stacklevel=2)
     if len(snp_list) > 0:
         write_snp_list(f"{out_path}.common_snp_list", snp_list)
 
