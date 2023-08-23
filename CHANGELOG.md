@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1]
+
+### Added
+
+- Refactor QC.
+- Add `qc_stats`, `calculate_allele_freq_hwe`, `calculate_homo_het_count`,
+    `write_snp_list`, `get_histogram` and `get_obs_count`.
+- Deprecate `cal_qc_client`.
+
 ## [0.9.0]
 
 ### Added
