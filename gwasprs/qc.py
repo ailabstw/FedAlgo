@@ -1,8 +1,9 @@
+from warnings import warn
+from typing import List, Tuple
+
 import pandas as pd
 import numpy as np
-from typing import List, Tuple
 import numpy.typing as npt
-
 
 from .utils import call_bash_cmd
 from .setup import setup_plink2
@@ -12,46 +13,66 @@ from .hwe import read_hardy, cal_hwe_pvalue_vec
 PLINK2_PATH = setup_plink2()
 
 
-# edge calculate basic qc stat
-def cal_qc_client(
-        bfile_path: str,
-        out_path: str,
-        snp_list: List[str],
-        HET_BIN: int,
-        HET_RANGE: Tuple[float, float],
-        ):
-
-    extract_cmd = ""
+def cal_qc_client(bfile_path: str, out_path: str, snp_list: List[str],
+        het_bin: int, het_range: Tuple[float, float]):
+    warn('cal_qc_client is deprecated.', DeprecationWarning, stacklevel=2)
     if len(snp_list) > 0:
-        with open(f"{out_path}.common_snp_list", "w") as FF:
-            for i in snp_list:
-                FF.write(f"{i}\n")
-        extract_cmd = f"--extract \"{out_path}.common_snp_list\""
+        write_snp_list(f"{out_path}.common_snp_list", snp_list)
 
-    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
+    calculate_allele_freq_hwe(bfile_path, out_path, snp_list)
+    calculate_homo_het_count(bfile_path, out_path, snp_list)
+
+    allele_count = read_hardy(out_path)
+    obs_count = get_obs_count(f"{out_path}.vmiss")
+    het_hist, het = get_histogram(f"{out_path}.het", het_bin, het_range)
+
+    return allele_count, het_hist, het, obs_count
+
+
+def qc_stats(bfile_path: str, out_path: str, snp_list: List[str]):
+    if len(snp_list) > 0:
+        write_snp_list(f"{out_path}.common_snp_list", snp_list)
+
+    calculate_allele_freq_hwe(bfile_path, out_path, snp_list)
+    calculate_homo_het_count(bfile_path, out_path, snp_list)
+
+    allele_count = read_hardy(out_path)
+    obs_count = get_obs_count(f"{out_path}.vmiss")
+
+    return allele_count, obs_count
+
+
+def calculate_allele_freq_hwe(bfile_path: str, out_path: str, snp_list: List[str]):
+    extract_cmd = f"--extract \"{out_path}.common_snp_list\"" if len(snp_list) > 0 else ""
+    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first --allow-extra-chr "
     cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
-    out, err = call_bash_cmd(cmd)
+    call_bash_cmd(cmd)
 
+
+def calculate_homo_het_count(bfile_path: str, out_path: str, snp_list: List[str]):
     # read-freq for sample size < 50
+    extract_cmd = f"--extract \"{out_path}.common_snp_list\"" if len(snp_list) > 0 else ""
+    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first --allow-extra-chr "
     cmd = f"{cmd0} --out \"{out_path}\"  --het --read-freq \"{out_path}.afreq\" "
-    out, err = call_bash_cmd(cmd)
+    call_bash_cmd(cmd)
 
-    ALLELE_COUNT = read_hardy(out_path)
 
-    # Get allele
-    #HWE = HWE.drop(columns = ["ID", "A1", "AX"])
+def write_snp_list(filepath, snp_list):
+    with open(filepath, "w") as file:
+        for i in snp_list:
+            file.write(f"{i}\n")
 
-    #FREQ = pd.read_csv(f"{out_path}.afreq", sep = r"\t")
-    VMISS = pd.read_csv(f"{out_path}.vmiss", sep = r"\s+")
-    OBS_CT = VMISS.OBS_CT.max()
-    #SMISS = pd.read_csv(f"{out_path}.smiss", sep = r"\t")
 
-    HET = pd.read_csv(f"{out_path}.het", sep = r"\s+")
-    HET_HIST, bin_edges = np.histogram(HET.F, bins=HET_BIN, range=HET_RANGE)
-    HET = HET.F.values
+def get_histogram(het_path, bin, range):
+    het = pd.read_csv(het_path, sep = r"\s+")
+    het_hist, bin_edges = np.histogram(het.F, bins=bin, range=range)
+    return het_hist, het.F.values
 
-    return ALLELE_COUNT, HET_HIST, HET, OBS_CT
 
+def get_obs_count(vmiss_path):
+    vmiss = pd.read_csv(vmiss_path, sep = r"\s+")
+    obs_count = vmiss.OBS_CT.max()
+    return obs_count
 
 
 # aggregator use het to filter ind
