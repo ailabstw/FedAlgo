@@ -12,7 +12,6 @@ from .hwe import read_hardy, cal_hwe_pvalue_vec
 PLINK2_PATH = setup_plink2()
 
 
-# edge calculate basic qc stat
 def cal_qc_client(bfile_path: str, out_path: str, snp_list: List[str],
         het_bin: int, het_range: Tuple[float, float]):
     if len(snp_list) > 0:
@@ -26,6 +25,19 @@ def cal_qc_client(bfile_path: str, out_path: str, snp_list: List[str],
     het_hist, het = get_histogram(f"{out_path}.het", het_bin, het_range)
 
     return allele_count, het_hist, het, obs_count
+
+
+def qc_stats(bfile_path: str, out_path: str, snp_list: List[str]):
+    if len(snp_list) > 0:
+        write_snp_list(f"{out_path}.common_snp_list", snp_list)
+
+    calculate_allele_freq_hwe(bfile_path, out_path, snp_list)
+    calculate_homo_het_count(bfile_path, out_path, snp_list)
+
+    allele_count = read_hardy(out_path)
+    obs_count = get_obs_count(f"{out_path}.vmiss")
+
+    return allele_count, obs_count
 
 
 def calculate_allele_freq_hwe(bfile_path: str, out_path: str, snp_list: List[str]):
