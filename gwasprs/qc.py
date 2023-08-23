@@ -17,8 +17,8 @@ def cal_qc_client(
         bfile_path: str,
         out_path: str,
         snp_list: List[str],
-        HET_BIN: int,
-        HET_RANGE: Tuple[float, float],
+        het_bin: int,
+        het_range: Tuple[float, float],
         ):
 
     extract_cmd = ""
@@ -37,21 +37,23 @@ def cal_qc_client(
     out, err = call_bash_cmd(cmd)
 
     ALLELE_COUNT = read_hardy(out_path)
+    obs_count = get_obs_count(f"{out_path}.vmiss")
+    het_hist, HET = get_histogram(f"{out_path}.het", het_bin, het_range)
 
-    # Get allele
-    #HWE = HWE.drop(columns = ["ID", "A1", "AX"])
+    return ALLELE_COUNT, het_hist, HET, obs_count
 
-    #FREQ = pd.read_csv(f"{out_path}.afreq", sep = r"\t")
-    VMISS = pd.read_csv(f"{out_path}.vmiss", sep = r"\s+")
-    OBS_CT = VMISS.OBS_CT.max()
-    #SMISS = pd.read_csv(f"{out_path}.smiss", sep = r"\t")
 
-    HET = pd.read_csv(f"{out_path}.het", sep = r"\s+")
-    HET_HIST, bin_edges = np.histogram(HET.F, bins=HET_BIN, range=HET_RANGE)
+def get_histogram(het_path, bin, range):
+    HET = pd.read_csv(het_path, sep = r"\s+")
+    het_hist, bin_edges = np.histogram(HET.F, bins=bin, range=range)
     HET = HET.F.values
+    return het_hist, HET
 
-    return ALLELE_COUNT, HET_HIST, HET, OBS_CT
 
+def get_obs_count(vmiss_path):
+    vmiss = pd.read_csv(vmiss_path, sep = r"\s+")
+    obs_count = vmiss.OBS_CT.max()
+    return obs_count
 
 
 # aggregator use het to filter ind
