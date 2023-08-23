@@ -13,41 +13,46 @@ PLINK2_PATH = setup_plink2()
 
 
 # edge calculate basic qc stat
-def cal_qc_client(
-        bfile_path: str,
-        out_path: str,
-        snp_list: List[str],
-        het_bin: int,
-        het_range: Tuple[float, float],
-        ):
-
-    extract_cmd = ""
+def cal_qc_client(bfile_path: str, out_path: str, snp_list: List[str],
+        het_bin: int, het_range: Tuple[float, float]):
     if len(snp_list) > 0:
-        with open(f"{out_path}.common_snp_list", "w") as FF:
-            for i in snp_list:
-                FF.write(f"{i}\n")
-        extract_cmd = f"--extract \"{out_path}.common_snp_list\""
+        write_snp_list(f"{out_path}.common_snp_list", snp_list)
 
-    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first  --allow-extra-chr "
-    cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
-    out, err = call_bash_cmd(cmd)
+    calculate_allele_freq_hwe(bfile_path, out_path, snp_list)
+    calculate_homo_het_count(bfile_path, out_path, snp_list)
 
-    # read-freq for sample size < 50
-    cmd = f"{cmd0} --out \"{out_path}\"  --het --read-freq \"{out_path}.afreq\" "
-    out, err = call_bash_cmd(cmd)
-
-    ALLELE_COUNT = read_hardy(out_path)
+    allele_count = read_hardy(out_path)
     obs_count = get_obs_count(f"{out_path}.vmiss")
-    het_hist, HET = get_histogram(f"{out_path}.het", het_bin, het_range)
+    het_hist, het = get_histogram(f"{out_path}.het", het_bin, het_range)
 
-    return ALLELE_COUNT, het_hist, HET, obs_count
+    return allele_count, het_hist, het, obs_count
+
+
+def calculate_allele_freq_hwe(bfile_path: str, out_path: str, snp_list: List[str]):
+    extract_cmd = f"--extract \"{out_path}.common_snp_list\"" if len(snp_list) > 0 else ""
+    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first --allow-extra-chr "
+    cmd = f"{cmd0} --freq --hardy --missing --out \"{out_path}\" "
+    call_bash_cmd(cmd)
+
+
+def calculate_homo_het_count(bfile_path: str, out_path: str, snp_list: List[str]):
+    # read-freq for sample size < 50
+    extract_cmd = f"--extract \"{out_path}.common_snp_list\"" if len(snp_list) > 0 else ""
+    cmd0 = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" {extract_cmd} --rm-dup force-first --allow-extra-chr "
+    cmd = f"{cmd0} --out \"{out_path}\"  --het --read-freq \"{out_path}.afreq\" "
+    call_bash_cmd(cmd)
+
+
+def write_snp_list(filepath, snp_list):
+    with open(filepath, "w") as file:
+        for i in snp_list:
+            file.write(f"{i}\n")
 
 
 def get_histogram(het_path, bin, range):
-    HET = pd.read_csv(het_path, sep = r"\s+")
-    het_hist, bin_edges = np.histogram(HET.F, bins=bin, range=range)
-    HET = HET.F.values
-    return het_hist, HET
+    het = pd.read_csv(het_path, sep = r"\s+")
+    het_hist, bin_edges = np.histogram(het.F, bins=bin, range=range)
+    return het_hist, het.F.values
 
 
 def get_obs_count(vmiss_path):
