@@ -4,3 +4,4 @@ jax[cpu]
 pooch
 bed_reader
 polars
+ordered_set
