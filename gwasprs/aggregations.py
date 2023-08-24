@@ -1,7 +1,6 @@
 import numpy as np
 import jax
-# from functools import reduce
-import logging
+from ordered_set import OrderedSet
 
 
 class Aggregation:
@@ -20,9 +19,7 @@ class Aggregation:
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)):
             return self.aggregate_arrays(*xs)
         else:
-            logging.error(f"weight type not correct, got {type(x)}")
-            logging.error("expect int, float, np.ndarray, list of np.ndarray")
-            raise NotImplementedError(f"{type(x)} is not supported")
+            raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray or list of np.ndarray")
 
 
 
@@ -52,48 +49,39 @@ class SumUp(Aggregation):
         return result
 
 
+class Intersect(Aggregation):
 
-# class Intersect(Aggregation):
+    def aggregate_list_of_array(self, *xs):
+        raise NotImplementedError("InterSect for list of array is not implemented yet")
 
-#     def aggregate_list_of_array(self, xs):
-#         raise NotImplementedError("Intersect for list of array is not implemented yet")
+    def aggregate_scalars(self, *xs):
+        raise NotImplementedError("InterSect for scalars is not implemented yet")
 
-#     def aggregate_scalars(self, xs):
-#         raise NotImplementedError("Intersect for scalars is not implemented yet")
+    def aggregate_arrays(self, *xs):
+        if len(xs) == 1:
+            return xs[0]
 
-#     def aggregate_arrays(self, xs):
-#         if len(xs[0].shape) > 1:
-#             raise NotImplementedError("Intersect for is only implemented for 1D array")
+        intersected = OrderedSet(xs[0].tolist())
+        for x in xs[1:]:
+            intersected.intersection_update(x.tolist())
 
-#         # index
-#         intersect_list = reduce(np.intersect1d, xs)
-
-#         # reorder
-#         ordered_list = []
-#         for i in xs[0]:
-#             if i in intersect_list:
-#                 ordered_list.append(i)
-
-#         return ordered_list
+        return np.array(list(intersected))
 
 
-
-class CheckSame(Aggregation):
+class IsSame(Aggregation):
 
     def aggregate_list_of_array(self, xs):
         raise NotImplementedError("CheckSame for list of array is not implemented yet")
 
     def aggregate_scalars(self, xs):
         if len(set(xs)) > 1:
-            logging.error(f"weight from client are not the same {xs}")
-            raise RuntimeError
+            raise RuntimeError(f"weight from client are not the same {xs}")
 
         return xs[0]
 
     def aggregate_arrays(self, xs):
         if not all_equal(xs):
-            logging.error(f"weight from client are not the same {xs}")
-            raise RuntimeError
+            raise RuntimeError(f"weight from client are not the same {xs}")
 
         return xs[0]
 
@@ -105,27 +93,3 @@ def all_equal(iterator):
         return all(np.array_equal(first, rest) for rest in iterator)
     except StopIteration:
         return True
-
-
-# class Union(Aggregation):
-
-#     def aggregate_list_of_array(self, xs):
-#         raise NotImplementedError("Union for list of array is not implemented yet")
-
-#     def aggregate_scalars(self, xs):
-#         return list(set(xs))
-
-#     def aggregate_arrays(self, xs):
-#         if len(xs[0].shape) > 1:
-#             raise NotImplementedError("Union for is only implemented for 1D array")
-
-#         # index
-#         union_list = reduce(np.union1d, xs)
-
-#         # reorder
-#         ordered_list = []
-#         for i in xs[0]:
-#             if i in union_list:
-#                 ordered_list.append(i)
-
-#         return ordered_list

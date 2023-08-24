@@ -27,7 +27,8 @@ dependencies = [
   'jax >= 0.4, < 0.5',
   'pooch >= 1, < 2',
   'bed_reader >= 0.2, < 0.3',
-  'polars >= 0.18, < 0.19'
+  'polars >= 0.18, < 0.19',
+  'ordered_set >= 4, < 5',
 ]
 
 [tool.setuptools.packages]
