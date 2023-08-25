@@ -1,15 +1,34 @@
-from jax import numpy as jnp
-from jax import random
-import numpy as np
-from . import linalg
-from scipy.stats import ortho_group
-from jax import scipy as jsp
+from typing import NewType
 
-def concat(xs):
-    return jnp.concatenate(xs, axis=1)
+import numpy as np
+import numpy.typing as npt
+from scipy.stats import ortho_group
+from jax import numpy as jnp
+from jax import scipy as jsp
+from jax import random
+
+from . import linalg
+
+
+Str1DArray = NewType("Str1DArray", npt.NDArray[np.byte])
+IntNDArray = NewType("IntNDArray", npt.NDArray[np.int32])
+FloatNDArray = NewType("FloatNDArray", npt.NDArray[np.float32])
+
+
+def concat(xs, axis=1):
+    return jnp.concatenate(xs, axis=axis)
+
 
 def impute_with(X, val=0.0):
     return jnp.nan_to_num(X, copy=True, nan=val, posinf=None, neginf=None)
+
+
+def expand_to_2dim(x, axis=-1):
+    x = jnp.array(x)
+    if jnp.ndim(x) == 1:
+        x = jnp.expand_dims(x, axis)
+    return x
+
 
 def simulate_genotype_matrix(key, shape=(10,30), r_mask=0.9, c_mask=0.9, impute=False, standardize=False):
     # simulate genotype matrix with NAs
@@ -29,6 +48,7 @@ def simulate_genotype_matrix(key, shape=(10,30), r_mask=0.9, c_mask=0.9, impute=
 
     return X
 
+
 def _subspace_iteration(A, G):
     H = linalg.mmdot(A.T, G)
     H, R = jsp.linalg.qr(H, mode='economic')
@@ -36,12 +56,14 @@ def _subspace_iteration(A, G):
     G, R = jsp.linalg.qr(G, mode='economic')
     return G, R
 
+
 def simulate_eigenvectors(n, m, k, seed=42, iterations=10):
     A = linalg.randn(n, m, seed).T
     G = ortho_group.rvs(dim=n)
     for _ in range(iterations):
         G, R = _subspace_iteration(A, G)
     return G[:,:k], R[:,:k]
+
 
 def genotype_matrix_input_formatter(As, edge_axis=None, sample_axis=None, snp_axis=None, transpose=False):
     """
@@ -69,7 +91,7 @@ def genotype_matrix_input_formatter(As, edge_axis=None, sample_axis=None, snp_ax
     elif len(As[0].shape) == 2:
         # Dealing with np.array with multiple sizes of matrix (dtype=object)
         As = [As[edge_idx] for edge_idx in range(len(As))]
-    
+
     else:
         raise ValueError('Unsupported data type.')
 
