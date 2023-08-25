@@ -10,9 +10,9 @@ from jax import random
 from . import linalg
 
 
-StrArray1D = NewType("StrArray1D", npt.NDArray[np.byte])
-IntArrayNd = NewType("IntArrayNd", npt.NDArray[np.int32])
-FloatArrayNd = NewType("FloatArrayNd", npt.NDArray[np.float32])
+Str1DArray = NewType("Str1DArray", npt.NDArray[np.byte])
+IntNDArray = NewType("IntNDArray", npt.NDArray[np.int32])
+FloatNDArray = NewType("FloatNDArray", npt.NDArray[np.float32])
 
 
 def concat(xs, axis=1):
