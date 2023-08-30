@@ -1,9 +1,10 @@
-from typing import List, Set
+from typing import Any, List, Set
 import pandas as pd
 import os
 import logging
 import numpy as np
 from bed_reader import open_bed
+import abc
 
 AUTOSOME_LIST = ()
 for i in range(1,23):
@@ -12,37 +13,46 @@ for i in range(1,23):
 def read_bed(bfile_path):
     return open_bed(f'{bfile_path}.bed')
 
-def read_fam(bfile_path):
-    FAM = pd.read_csv(f'{bfile_path}.fam', sep='\s+', header=None)
+def fam_setter(FAM):
     FAM.columns = ['FID','IID','P','M','SEX','PHENO1']
     FAM.FID = FAM.FID.astype(str)
     FAM.IID = FAM.IID.astype(str)
     return FAM
 
-def read_bim(bfile_path):
-    BIM = pd.read_csv(f'{bfile_path}.bim', sep='\s+', header=None)
+def bim_setter(BIM):
     BIM.columns = ['CHR','ID','cM','POS','A1','A2']
     BIM.A1 = BIM.A1.astype(str).replace('0','.')
     BIM.A2 = BIM.A2.astype(str).replace('0','.')
     BIM.ID = BIM.ID.astype(str)
     return BIM
 
+def cov_setter(COV):
+    COV.FID = COV.FID.astype(str)
+    COV.IID = COV.IID.astype(str)
+    return COV.drop_duplicates(subset = ['FID','IID'])
+
+def pheno_setter(PHENO):
+    PHENO.columns = ['FID','IID','PHENO1']
+    PHENO.FID = PHENO.FID.astype(str)
+    PHENO.IID = PHENO.IID.astype(str)
+    return PHENO
+
+def read_fam(bfile_path):
+    return fam_setter(pd.read_csv(f'{bfile_path}.fam', sep='\s+', header=None))
+
+def read_bim(bfile_path):
+    return bim_setter(pd.read_csv(f'{bfile_path}.bim', sep='\s+', header=None))
+
 def read_cov(cov_path):
     sep = ',' if '.csv' in cov_path else '\s+'
     COV = pd.read_csv(cov_path, sep=sep)
-    COV.FID = COV.FID.astype(str)
-    COV.IID = COV.IID.astype(str)
-    COV = COV.drop_duplicates(subset = ['FID','IID'])
-    return COV
+    return cov_setter(COV)
 
 def read_pheno(pheno_path, pheno_name):
     sep = ',' if '.csv' in pheno_path else '\s+'
     PHENO = pd.read_csv(pheno_path, sep=sep)
     PHENO = PHENO[['FID','IID',pheno_name]]
-    PHENO.columns = ['FID','IID','PHENO1']
-    PHENO.FID = PHENO.FID.astype(str)
-    PHENO.IID = PHENO.IID.astype(str)
-    return PHENO
+    return pheno_setter(PHENO)
 
 def read_snp_list(snp_list_path):
     """
@@ -278,10 +288,9 @@ class GWASData:
             bim : With unique IDs and rsIDs
             genotype : If the A1 and A2 are switched, snp array = 2 - snp array
     """
-    def __init__(self, bed, fam, bim, cov):
+    def __init__(self, GT, fam, bim, cov):
         self.__dict__.update(locals())
         self.__dict__.update({f'dropped_{data}':pd.DataFrame() for data in ['fam', 'bim', 'cov']})
-        self.GT = self.bed.read()
 
     def standard(self):
         self.subset()
@@ -396,12 +405,332 @@ class GWASData:
 
 def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
     bed = read_bed(bfile_path)
+    GT = bed.read()
     fam = read_fam(bfile_path)
     fam = format_fam(fam, pheno_path, pheno_name)
     bim = read_bim(bfile_path)
     cov = read_cov(cov_path)
     cov = format_cov(cov, fam)
-    return GWASData(bed, fam, bim, cov)
+    return GWASData(GT, fam, bim, cov)
+    
+def format_sample_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+    """
+    """
+    fam = read_fam(bfile_path)
+    fam = format_fam(fam, pheno_path, pheno_name)
+    fam.to_csv('iterative.fam', index=None)
+    if cov_path:
+        cov = read_cov(cov_path)
+        cov = format_cov(cov, fam)
+        cov.to_csv('iterative.cov', index=None)
+
+class IndexIterator(abc.ABC):
+    def __init__(self, n_features, chunk_size:int=1000, skip_idx:(list, range)=None):
+        self.n_features = n_features
+        self.current_idx = 0
+        self.chunk_size = chunk_size
+        self.skip_idx = skip_idx
+    
+    def keep_features(self, chunk_size):
+        interval = (self.current_idx, min(self.current_idx+chunk_size, self.n_features))
+        if self.skip_idx:
+            keep_features = list(set(range(*interval)).difference(self.skip_idx))
+        else:
+            keep_features = range(*interval)
+        return keep_features
+    
+    def reset(self):
+        self.current_idx = 0
+
+    def is_end(self):
+        return self.current_idx >= self.n_features
+
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.current_idx < self.n_features:
+            idx = self.keep_features(self.chunk_size)
+            self.current_idx += self.chunk_size
+            return idx
+        else:
+            raise StopIteration
+
+class SNPIterator(IndexIterator):
+    def __init__(self, n_SNP, chunk_size:int=1000, skip_idx:(list, range)=None):
+        super().__init__(n_SNP, chunk_size, skip_idx)
+        self.n_SNP = n_SNP
+        self.sample_iterator = None
+    
+    def keep_idx(self, chunk_size):
+        if self.sample_iterator:
+            sample_idx = next(self.sample_iterator)
+            return np.s_[sample_idx, self.keep_features(chunk_size)]
+        else:
+            return np.s_[:, self.keep_features(chunk_size)]
+        
+    def samples(self, n_sample, chunk_size:int=1000, skip_idx:(list, range)=None):
+        self.sample_iterator = IndexIterator(n_sample, chunk_size, skip_idx)
+        return self
+    
+    def get_chunk(self, chunk_size, reset=True):
+        if self.current_idx < self.n_SNP:
+            idx = self.keep_idx(chunk_size)
+            # SNP index starts from current idx + chunk size in the next iteration
+            # Sample index starts from 0 in the next iteration
+            if reset:
+                self.current_idx += chunk_size
+                if self.sample_iterator:
+                    self.sample_iterator.reset()
+            # SNP index starts from current idx
+            # Sample index starts from current idx + chunk size in the next iteration
+            else:
+                if self.sample_iterator.is_end():
+                    self.sample_iterator.reset()
+                    self.current_idx += chunk_size
+            return idx
+        else:
+            raise StopIteration
+
+    def __next__(self):
+        if self.current_idx < self.n_SNP:
+            idx = self.keep_idx(self.chunk_size)
+            if self.sample_iterator is None:
+                self.current_idx += self.chunk_size
+            elif self.sample_iterator.is_end():
+                self.sample_iterator.reset()
+                self.current_idx += self.chunk_size
+            return idx
+        else:
+            raise StopIteration
+    
+    @property
+    def sample_chunk_size(self):
+        if self.sample_iterator:
+            return self.sample_iterator.chunk_size
+        else:
+            return None
+    
+    @property
+    def snp_chunk_size(self):
+        return self.chunk_size
+
+class SampleIterator(IndexIterator):
+    def __init__(self, n_sample, chunk_size:int=1000, skip_idx:(list, range)=None):
+        super().__init__(n_sample, chunk_size, skip_idx)
+        self.n_sample = n_sample
+        self.snp_iterator = None
+    
+    def keep_idx(self, chunk_size):
+        if self.snp_iterator:
+            snp_idx = next(self.snp_iterator)
+            return np.s_[self.keep_features(chunk_size), snp_idx]
+        else:
+            return np.s_[self.keep_features(chunk_size), :]
+    
+    def snps(self, n_SNP, chunk_size:int=1000, skip_idx:(range, list)=None):
+        self.snp_iterator = IndexIterator(n_SNP, chunk_size, skip_idx)
+        return self
+
+    def get_chunk(self, chunk_size, reset=True):
+        """ 
+        Independent function to get chunk, 
+        if the snp_iterator exists, reset it to make the initial chunk.
+        """
+        if self.current_idx < self.n_sample:
+            idx = self.keep_idx(chunk_size)
+            # Sample index starts from current idx + chunk size in the next iteration
+            # SNP index starts from 0 in the next iteration
+            if reset:
+                self.current_idx += chunk_size 
+                if self.snp_iterator: 
+                    self.snp_iterator.reset()
+            # Sample index starts from current idx
+            # SNP index starts from current idx + chunk size in the next iteration
+            else:
+                if self.snp_iterator.is_end():
+                    self.snp_iterator.reset()
+                    self.current_idx += chunk_size
+            return idx
+        else:
+            raise StopIteration
+
+    def __next__(self):
+        if self.current_idx < self.n_sample:
+            idx = self.keep_idx(self.chunk_size)
+            if self.snp_iterator is None:
+                self.current_idx += self.chunk_size
+            elif self.snp_iterator.is_end():
+                self.snp_iterator.reset()
+                self.current_idx += self.chunk_size
+            return idx
+        else:
+            raise StopIteration
+    
+    @property
+    def sample_chunk_size(self):
+        return self.chunk_size
+    
+    @property
+    def snp_chunk_size(self):
+        if self.snp_iterator:
+            return self.snp_iterator.chunk_size
+        else:
+            return None
+
+class BedIterator:
+    def __init__(self, bfile_path:str, iterator:object):
+        self.bed = read_bed(bfile_path)
+        self.iterator = iterator
+    
+    def read(self):
+        return self.bed.read()
+    
+    def get_chunk(self, chunk_size, reset=True):
+        # the chunk_size is the sample chunk size of SampleIterator(SNPIterator)
+        # the chunk_size is the snp chunk size of SNPIterator(SampleIterator)
+        idx = self.iterator.get_chunk(chunk_size, reset)
+        return self.bed.read(index=idx)
+        
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        idx = next(self.iterator)
+        return self.bed.read(index=idx)
+    
+class FamIterator:
+    # Only supports SampleIterator, SampleIterator(SNPIterator)
+    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator=None):
+        format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
+        self.fam = pd.read_csv('iterative.fam', iterator=True)
+        self.iterator = iterator
+    
+    def read(self):
+        return fam_setter(self.fam.read())
+    
+    def get_chunk(self, chunk_size):
+        fam = self.fam.get_chunk(chunk_size)
+        if self.iterator:
+            idx = self.iterator.get_chunk(chunk_size)
+            idx = np.s_[idx[0],:] # ignore snp index
+            return fam_setter(fam).loc[idx]
+        else:
+            return fam_setter(fam)
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        return self.get_chunk(self.iterator.chunk_size)
+    
+class CovIterator:
+    # Only supports SampleIterator, SampleIterator(SNPIterator)
+    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator=None):
+        format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
+        if cov_path:
+            self.cov = pd.read_csv('iterative.cov', iterator=True)
+        else:
+            self.cov = None
+        self.iterator = iterator
+
+    def read(self):
+        if self.cov:
+            return cov_setter(self.cov.read())
+        else:
+            return None
+    
+    def get_chunk(self, chunk_size):
+        if self.cov:
+            cov = self.cov.get_chunk(chunk_size)
+            if self.iterator:
+                idx = self.iterator.get_chunk(chunk_size)
+                idx = np.s_[idx[0],:] # ignore snp index
+                return cov_setter(cov).loc[idx]
+            else:
+                return cov_setter(cov)
+        else:
+            self.iterator.get_chunk(chunk_size) # prevent hanging while calling __next__
+            return None
+
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        return self.get_chunk(self.iterator.chunk_size)
+    
+class BimIterator:
+    # Only supports SNPIterator, SNPIterator(SampleIterator)
+    def __init__(self, bfile_path, iterator=None):
+        self.bim = pd.read_csv(f'{bfile_path}.bim', iterator=True, sep='\s+', header=None)
+        self.iterator = iterator
+
+    def read(self):
+        bim = self.bim.read()
+        return bim_setter(bim)
+    
+    def get_chunk(self, chunk_size):
+        bim = self.bim.get_chunk(chunk_size)
+        if self.iterator:
+            idx = self.iterator.get_chunk(chunk_size)
+            idx = np.s_[idx[1],:] # ignore sample index
+            return bim_setter(bim).loc[idx]
+        else:
+            return bim_setter(bim)
+
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        return self.get_chunk(self.iterator.chunk_size)
+
+
+
+class GWASDataIterator:
+    def __init__(self, bfile_path, iterator:object,
+                  cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+        self.bed = BedIterator(bfile_path, iterator)
+        self.bim = BimIterator(bfile_path, iterator)
+        self.fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name, iterator)
+        self.cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name, iterator)
+
+        self.iterator = iterator
+        if self.iterator.sample_chunk_size is None:
+            self.fam = self.fam.read()
+            self.cov = self.cov.read()
+        elif self.iterator.snp_chunk_size is None:
+            self.bim = self.bim.read()
+    
+    def get_chunk(self, chunk_size):
+        chunk_bed = self.bed.get_chunk(chunk_size)
+
+        # SNPIterator
+        if self.iterator.sample_chunk_size is None:
+            chunk_bim = self.bim.get_chunk(self.iterator.snp_chunk_size)
+            return GWASData(chunk_bed, self.fam, chunk_bim, self.cov)
+        
+        # SampleIterator
+        elif self.iterator.snp_chunk_size is None:
+            chunk_fam = self.fam.get_chunk(self.iterator.sample_chunk_size)
+            chunk_cov = self.cov.get_chunk(self.iterator.sample_chunk_size)
+            return GWASData(chunk_bed, chunk_fam, self.bim, chunk_cov)
+        
+        # SampleIterator(SNPIterator), SNPIterator(SampleIterator)
+        else:
+            chunk_bim = self.bim.get_chunk(self.iterator.snp_chunk_size)
+            chunk_fam = self.fam.get_chunk(self.iterator.sample_chunk_size)
+            chunk_cov = self.cov.get_chunk(self.iterator.sample_chunk_size)
+            return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        return self.get_chunk(self.iterator.chunk_size)
+            
+
+
+
 
 
 
