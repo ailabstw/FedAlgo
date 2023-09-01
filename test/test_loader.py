@@ -466,7 +466,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
             fam = self.fam.loc[idx[0]]
             cov = self.cov.loc[idx[0]]
             ans = gwasprs.loader.GWASData(bed, fam, bim, cov)
-            print('chunk_size', len(idx[0]))
+
             result = GWASDataIterator.get_chunk(len(idx[0]))
 
             gwasprs.loader.assert_GWASData_is_equal(ans, result)
@@ -487,16 +487,34 @@ class GWASDataIteratorTestCase(unittest.TestCase):
             gwasprs.loader.assert_GWASData_is_equal(ans, result)
 
     def test_sample_snp_get_chunk(self):
-        ans = self.bed.read()
-
         iterator = gwasprs.loader.SampleIterator(self.n_sample, self.sample_chunk_size).snps(self.n_SNP, self.snp_chunk_size)
-        pass
+        GWASDataIterator = gwasprs.loader.GWASDataIterator.SampleWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+
+        for idx in iterator:
+            bed = self.bed.read(index=idx)
+            bim = self.bim.loc[idx[1]]
+            fam = self.fam.loc[idx[0]]
+            cov = self.cov.loc[idx[0]]
+            ans = gwasprs.loader.GWASData(bed, fam, bim, cov)
+
+            result = GWASDataIterator.get_chunk(len(idx[0]))
+
+            gwasprs.loader.assert_GWASData_is_equal(ans, result)
 
     def test_snp_sample_get_chunk(self):
-        ans = self.bed.read()
-
         iterator = gwasprs.loader.SNPIterator(self.n_SNP, self.snp_chunk_size).samples(self.n_sample, self.sample_chunk_size)
-        pass
+        GWASDataIterator = gwasprs.loader.GWASDataIterator.SNPWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+
+        for idx in iterator:
+            bed = self.bed.read(index=idx)
+            bim = self.bim.loc[idx[1]]
+            fam = self.fam.loc[idx[0]]
+            cov = self.cov.loc[idx[0]]
+            ans = gwasprs.loader.GWASData(bed, fam, bim, cov)
+
+            result = GWASDataIterator.get_chunk(len(idx[1]))
+
+            gwasprs.loader.assert_GWASData_is_equal(ans, result)
 
     def test_only_sample_next(self):
         ans = self.bed.read()

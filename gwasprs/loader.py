@@ -704,7 +704,7 @@ class CovIterator:
 class BimIterator:
     def __init__(self, bfile_path, iterator:(SNPIterator|None)=None):
         self.bim = pd.read_csv(f'{bfile_path}.bim', iterator=True, sep='\s+', header=None)
-        self.bfile = bfile_path
+        self.bfile_path = bfile_path
         self.iterator = iterator
         
         if type(self.iterator) is SNPIterator or type(self.iterator) is type(None):
@@ -750,6 +750,7 @@ class BimIterator:
 class GWASDataIterator:
     def __init__(self, bed:BedIterator, bim:BimIterator, fam:FamIterator, cov:CovIterator, iterator:(SampleIterator|SNPIterator)):
         self.__dict__.update(locals())
+        self.prev_idx = None
 
     @staticmethod
     def SampleWise(bfile_path, iterator:SampleIterator,
@@ -760,7 +761,7 @@ class GWASDataIterator:
         cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name, copy.deepcopy(iterator))
         if iterator.category == 'sample':
             bim.to_static()
-        return GWASDataIterator(bed, bim, fam, cov, iterator)
+        return GWASDataIterator(bed, bim, fam, cov, copy.deepcopy(iterator))
 
     @staticmethod
     def SNPWise(bfile_path, iterator:SNPIterator,
@@ -772,32 +773,44 @@ class GWASDataIterator:
         if iterator.category == 'snp':
             fam.to_static()
             cov.to_static()
-        return GWASDataIterator(bed, bim, fam, cov, iterator)
+        return GWASDataIterator(bed, bim, fam, cov, copy.deepcopy(iterator))
     
     def reset(self):
-        if self.iterator.category == 'sample-snp' and self.iterator.snp_iterator.is_end():
+        if self.iterator.category == 'sample-snp' and self.iterator.snp_iterator.n_features == self.prev_idx[1][-1]+1:
             self.bim.reset()
-        elif self.iterator.category == 'snp-sample' and self.iterator.sample_iterator.is_end():
+        elif self.iterator.category == 'snp-sample' and self.iterator.sample_iterator.n_features == self.prev_idx[0][-1]+1:
             self.fam.reset()
             self.cov.reset()
 
     def get_chunk(self, chunk_size):
-
-        if self.iterator.category == ('sample-snp' or 'snp-sample'):
+        if self.iterator.category == 'sample-snp' or self.iterator.category == 'snp-sample':
             reset = False
         else:
             reset = True
-        
+
         chunk_bed = self.bed.get_chunk(chunk_size, reset=reset)
-        chunk_bim = self.bim.get_chunk(chunk_size)
-        chunk_fam = self.fam.get_chunk(chunk_size)
-        chunk_cov = self.cov.get_chunk(chunk_size)
+        
+        idx = self.iterator.get_chunk(chunk_size, reset=reset)
+        sample_size = len(idx[0]) if idx[0] != slice(None) else 0
+        snp_size = len(idx[1]) if idx[1] != slice(None) else 0
+
+        if self.prev_idx is None:
+            self.prev_idx = idx
+            self.chunk_fam = self.fam.get_chunk(sample_size)
+            self.chunk_cov = self.cov.get_chunk(sample_size)
+            self.chunk_bim = self.bim.get_chunk(snp_size)
+
+        if self.prev_idx[0] != idx[0]:
+            self.chunk_fam = self.fam.get_chunk(sample_size)
+            self.chunk_cov = self.cov.get_chunk(sample_size)
+        
+        if self.prev_idx[1] != idx[1]:
+            self.chunk_bim = self.bim.get_chunk(snp_size)
+
+        self.prev_idx = idx
         self.reset()
-        print('chunk_bed', chunk_bed.shape)
-        print('chunk_bim', chunk_bim.shape)
-        print('chunk_fam', chunk_fam.shape)
-        print('chunk_cov', chunk_cov.shape)
-        return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
+        
+        return GWASData(chunk_bed, self.chunk_fam, self.chunk_bim, self.chunk_cov)
     
     def __iter__(self):
         return self
@@ -806,10 +819,7 @@ class GWASDataIterator:
         return self.get_chunk(self.iterator.chunk_size)
 
 
-def assert_GWASData_is_equal(GWASData1, GWASData2, standard=True):
-    # if standard:
-    #     GWASData1.standard()
-    #     GWASData2.standard()
+def assert_GWASData_is_equal(GWASData1, GWASData2):
     GWASData1_properties = vars(GWASData1)
     GWASData2_properties = vars(GWASData2)
     for key in GWASData1_properties.keys():
@@ -818,7 +828,9 @@ def assert_GWASData_is_equal(GWASData1, GWASData2, standard=True):
         if type(v1) is np.ndarray:
             np.testing.assert_allclose(v1, v2, equal_nan=True)
         elif type(v1) is pd.DataFrame:
-            pd.testing.assert_frame_equal(v1, v2)
+            v1.reset_index(drop=True, inplace=True)
+            v2.reset_index(drop=True, inplace=True)
+            pd.testing.assert_frame_equal(v1, v2, check_index_type=False)
 
 
 
