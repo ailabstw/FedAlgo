@@ -1,6 +1,7 @@
 from typing import Any, List, Set
 import pandas as pd
 import os
+import copy
 import logging
 import numpy as np
 from bed_reader import open_bed
@@ -474,46 +475,51 @@ class SNPIterator(IndexIterator):
         return self
     
     def get_chunk(self, chunk_size, reset=True):
+        """
+        Usage:
+            SNPIterator.get_chunk()
+                the next SNP idx starts from current_idx + chunk_size
+
+            SNPIterator.get_chunk(reset=False)
+                the next SNP idx starts from current_idx + chunk_size
+
+            SNPIterator.samples().get_chunk()
+                the next SNP idx starts from current_idx + chunk_size
+                the next Sample idx starts from 0
+
+            SNPIterator.samples().get_chunk(reset=False)
+                if Sample idx approch the end,
+                the next SNP idx starts from current_idx + chunk_size
+                the next Sample idx starts from 0
+
+                otherwise,
+                the next SNP idx starts from current_idx
+                the next Sample idx starts from current_idx + chunk_size
+        
+        More explicit usage can be found in unittest.
+        """
         if self.current_idx < self.n_SNP:
             idx = self.keep_idx(chunk_size)
-            # SNP index starts from current idx + chunk size in the next iteration
-            # Sample index starts from 0 in the next iteration
-            if reset:
-                self.current_idx += chunk_size
-                if self.sample_iterator:
-                    self.sample_iterator.reset()
-            # SNP index starts from current idx
-            # Sample index starts from current idx + chunk size in the next iteration
-            else:
-                if self.sample_iterator.is_end():
-                    self.sample_iterator.reset()
-                    self.current_idx += chunk_size
+            self.current_idx += chunk_size
+            # reset was used to prevent StopIteration caused by sample_iterator
+            if self.sample_iterator and (self.sample_iterator.is_end() or reset):
+                self.sample_iterator.reset()
+            # don't jump to the next chunk until reaching the end
+            elif self.sample_iterator and not reset:
+                self.current_idx -= chunk_size
             return idx
         else:
             raise StopIteration
 
     def __next__(self):
-        if self.current_idx < self.n_SNP:
-            idx = self.keep_idx(self.chunk_size)
-            if self.sample_iterator is None:
-                self.current_idx += self.chunk_size
-            elif self.sample_iterator.is_end():
-                self.sample_iterator.reset()
-                self.current_idx += self.chunk_size
-            return idx
-        else:
-            raise StopIteration
+        return self.get_chunk(self.chunk_size, reset=False)
     
     @property
-    def sample_chunk_size(self):
+    def category(self):
         if self.sample_iterator:
-            return self.sample_iterator.chunk_size
+            return 'snp-sample'
         else:
-            return None
-    
-    @property
-    def snp_chunk_size(self):
-        return self.chunk_size
+            return 'snp'
 
 class SampleIterator(IndexIterator):
     def __init__(self, n_sample, chunk_size:int=1000, skip_idx:(list, range)=None):
@@ -533,53 +539,55 @@ class SampleIterator(IndexIterator):
         return self
 
     def get_chunk(self, chunk_size, reset=True):
-        """ 
-        Independent function to get chunk, 
-        if the snp_iterator exists, reset it to make the initial chunk.
+        """
+        Usage:
+            SampleIterator.get_chunk()
+                the next Sample idx starts from current_idx + chunk_size
+
+            SampleIterator.get_chunk(reset=False)
+                the next Sample idx starts from current_idx + chunk_size
+
+            SampleIterator.snps().get_chunk()
+                the next Sample idx starts from current_idx + chunk_size
+                the next SNP idx starts from 0
+
+            SampleIterator.snps().get_chunk(reset=False)
+                if SNP idx approch the end,
+                the next Sample idx starts from current_idx + chunk_size
+                the next SNP idx starts from 0
+
+                otherwise,
+                the next Sample idx starts from current_idx
+                the next SNP idx starts from current_idx + chunk_size
+        
+        More explicit usage can be found in unittest.
         """
         if self.current_idx < self.n_sample:
             idx = self.keep_idx(chunk_size)
-            # Sample index starts from current idx + chunk size in the next iteration
-            # SNP index starts from 0 in the next iteration
-            if reset:
-                self.current_idx += chunk_size 
-                if self.snp_iterator: 
-                    self.snp_iterator.reset()
-            # Sample index starts from current idx
-            # SNP index starts from current idx + chunk size in the next iteration
-            else:
-                if self.snp_iterator.is_end():
-                    self.snp_iterator.reset()
-                    self.current_idx += chunk_size
+            self.current_idx += chunk_size
+            # reset was used to prevent StopIteration caused by snp_iterator
+            if self.snp_iterator and (self.snp_iterator.is_end() or reset):
+                self.snp_iterator.reset()
+            # don't jump to the next chunk until reaching the end
+            elif self.snp_iterator and not reset:
+                self.current_idx -= chunk_size
             return idx
         else:
             raise StopIteration
 
     def __next__(self):
-        if self.current_idx < self.n_sample:
-            idx = self.keep_idx(self.chunk_size)
-            if self.snp_iterator is None:
-                self.current_idx += self.chunk_size
-            elif self.snp_iterator.is_end():
-                self.snp_iterator.reset()
-                self.current_idx += self.chunk_size
-            return idx
-        else:
-            raise StopIteration
+        return self.get_chunk(self.chunk_size, reset=False)
     
     @property
-    def sample_chunk_size(self):
-        return self.chunk_size
-    
-    @property
-    def snp_chunk_size(self):
+    def category(self):
         if self.snp_iterator:
-            return self.snp_iterator.chunk_size
+            return 'sample-snp'
         else:
-            return None
+            return 'sample'
+
 
 class BedIterator:
-    def __init__(self, bfile_path:str, iterator:object):
+    def __init__(self, bfile_path:str, iterator:(SampleIterator|SNPIterator)):
         self.bed = read_bed(bfile_path)
         self.iterator = iterator
     
@@ -600,39 +608,63 @@ class BedIterator:
         return self.bed.read(index=idx)
     
 class FamIterator:
-    # Only supports SampleIterator, SampleIterator(SNPIterator)
-    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator=None):
+    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator:(SampleIterator|None)=None):
         format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
         self.fam = pd.read_csv('iterative.fam', iterator=True)
         self.iterator = iterator
+        if type(self.iterator) is SampleIterator or type(self.iterator) is type(None):
+            self.static = False
+        else:
+            raise TypeError('iterator only supports SampleIterator and NoneType.')
     
     def read(self):
         return fam_setter(self.fam.read())
     
+    def to_static(self):
+        self.static = True
+        self.fam = self.read()
+    
+    def reset(self):
+        self.fam = pd.read_csv('iterative.fam', iterator=True)
+    
     def get_chunk(self, chunk_size):
-        fam = self.fam.get_chunk(chunk_size)
-        if self.iterator:
-            idx = self.iterator.get_chunk(chunk_size)
-            idx = np.s_[idx[0],:] # ignore snp index
-            return fam_setter(fam).loc[idx]
+        if not self.static:
+            fam = self.fam.get_chunk(chunk_size)
+            if self.iterator:
+                idx = self.iterator.get_chunk(chunk_size)
+                idx = np.s_[idx[0],:] # ignore snp index
+                return fam_setter(fam).loc[idx]
+            else:
+                return fam_setter(fam)
         else:
-            return fam_setter(fam)
+            # Static mode ignores chunk_size information
+            return self.fam
     
     def __iter__(self):
         return self
     
     def __next__(self):
-        return self.get_chunk(self.iterator.chunk_size)
+        if not self.static:
+            return self.get_chunk(self.iterator.chunk_size)
+        else:
+            raise AttributeError("Static mode cannot perform iteration. Please use `get_chunk()` to get the static data.")
     
 class CovIterator:
-    # Only supports SampleIterator, SampleIterator(SNPIterator)
-    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator=None):
+    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator:(SampleIterator|None)=None):
         format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
         if cov_path:
             self.cov = pd.read_csv('iterative.cov', iterator=True)
         else:
             self.cov = None
+            
         self.iterator = iterator
+        if type(self.iterator) is SampleIterator or type(self.iterator) is type(None):
+            if self.cov:
+                self.static = False
+            else:
+                self.to_static()
+        else:
+            raise TypeError('iterator only supports SampleIterator and NoneType.')
 
     def read(self):
         if self.cov:
@@ -640,8 +672,15 @@ class CovIterator:
         else:
             return None
     
+    def to_static(self):
+        self.static = True
+        self.cov = self.read()
+    
+    def reset(self):
+        if self.cov: self.cov = pd.read_csv('iterative.cov', iterator=True)
+    
     def get_chunk(self, chunk_size):
-        if self.cov:
+        if self.cov is not None and not self.static:
             cov = self.cov.get_chunk(chunk_size)
             if self.iterator:
                 idx = self.iterator.get_chunk(chunk_size)
@@ -650,8 +689,11 @@ class CovIterator:
             else:
                 return cov_setter(cov)
         else:
-            self.iterator.get_chunk(chunk_size) # prevent hanging while calling __next__
-            return None
+            # Allowing static mode iteration is because 
+            # cov could be missing when fam iterator is dynamic mode, and they should share the same index iterator.
+            if self.iterator:
+                self.iterator.get_chunk(chunk_size)
+            return self.cov
 
     def __iter__(self):
         return self
@@ -660,77 +702,123 @@ class CovIterator:
         return self.get_chunk(self.iterator.chunk_size)
     
 class BimIterator:
-    # Only supports SNPIterator, SNPIterator(SampleIterator)
-    def __init__(self, bfile_path, iterator=None):
+    def __init__(self, bfile_path, iterator:(SNPIterator|None)=None):
         self.bim = pd.read_csv(f'{bfile_path}.bim', iterator=True, sep='\s+', header=None)
+        self.bfile = bfile_path
         self.iterator = iterator
+        
+        if type(self.iterator) is SNPIterator or type(self.iterator) is type(None):
+            self.static = False
+        else:
+            raise TypeError('iterator only supports SNPIterator and NoneType.')
 
     def read(self):
         bim = self.bim.read()
         return bim_setter(bim)
+
+    def to_static(self):
+        self.static = True
+        self.bim = self.read()
+
+    def reset(self):
+        self.bim = pd.read_csv(f'{self.bfile_path}.bim', iterator=True, sep='\s+', header=None)
     
     def get_chunk(self, chunk_size):
-        bim = self.bim.get_chunk(chunk_size)
-        if self.iterator:
-            idx = self.iterator.get_chunk(chunk_size)
-            idx = np.s_[idx[1],:] # ignore sample index
-            return bim_setter(bim).loc[idx]
+        if not self.static:
+            bim = self.bim.get_chunk(chunk_size)
+            if self.iterator:
+                idx = self.iterator.get_chunk(chunk_size)
+                idx = np.s_[idx[1],:] # ignore sample index
+                return bim_setter(bim).loc[idx]
+            else:
+                return bim_setter(bim)
         else:
-            return bim_setter(bim)
+            # Static mode ignores chunk_size information
+            return self.bim
 
     def __iter__(self):
         return self
     
     def __next__(self):
-        return self.get_chunk(self.iterator.chunk_size)
+        if not self.static:
+            return self.get_chunk(self.iterator.chunk_size)
+        else:
+            raise AttributeError("Static mode cannot perform iteration. Please use `get_chunk()` to get the static data.")
 
 
 
 class GWASDataIterator:
-    def __init__(self, bfile_path, iterator:object,
+    def __init__(self, bed:BedIterator, bim:BimIterator, fam:FamIterator, cov:CovIterator, iterator:(SampleIterator|SNPIterator)):
+        self.__dict__.update(locals())
+
+    @staticmethod
+    def SampleWise(bfile_path, iterator:SampleIterator,
                   cov_path=None, pheno_path=None, pheno_name='PHENO1'):
-        self.bed = BedIterator(bfile_path, iterator)
-        self.bim = BimIterator(bfile_path, iterator)
-        self.fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name, iterator)
-        self.cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name, iterator)
+        bed = BedIterator(bfile_path, copy.deepcopy(iterator))
+        bim = BimIterator(bfile_path)
+        fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name, copy.deepcopy(iterator))
+        cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name, copy.deepcopy(iterator))
+        if iterator.category == 'sample':
+            bim.to_static()
+        return GWASDataIterator(bed, bim, fam, cov, iterator)
 
-        self.iterator = iterator
-        if self.iterator.sample_chunk_size is None:
-            self.fam = self.fam.read()
-            self.cov = self.cov.read()
-        elif self.iterator.snp_chunk_size is None:
-            self.bim = self.bim.read()
+    @staticmethod
+    def SNPWise(bfile_path, iterator:SNPIterator,
+                  cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+        bed = BedIterator(bfile_path, copy.deepcopy(iterator))
+        bim = BimIterator(bfile_path, copy.deepcopy(iterator))
+        fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name)
+        cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name)
+        if iterator.category == 'snp':
+            fam.to_static()
+            cov.to_static()
+        return GWASDataIterator(bed, bim, fam, cov, iterator)
     
-    def get_chunk(self, chunk_size):
-        chunk_bed = self.bed.get_chunk(chunk_size)
+    def reset(self):
+        if self.iterator.category == 'sample-snp' and self.iterator.snp_iterator.is_end():
+            self.bim.reset()
+        elif self.iterator.category == 'snp-sample' and self.iterator.sample_iterator.is_end():
+            self.fam.reset()
+            self.cov.reset()
 
-        # SNPIterator
-        if self.iterator.sample_chunk_size is None:
-            chunk_bim = self.bim.get_chunk(self.iterator.snp_chunk_size)
-            return GWASData(chunk_bed, self.fam, chunk_bim, self.cov)
-        
-        # SampleIterator
-        elif self.iterator.snp_chunk_size is None:
-            chunk_fam = self.fam.get_chunk(self.iterator.sample_chunk_size)
-            chunk_cov = self.cov.get_chunk(self.iterator.sample_chunk_size)
-            return GWASData(chunk_bed, chunk_fam, self.bim, chunk_cov)
-        
-        # SampleIterator(SNPIterator), SNPIterator(SampleIterator)
+    def get_chunk(self, chunk_size):
+
+        if self.iterator.category == ('sample-snp' or 'snp-sample'):
+            reset = False
         else:
-            chunk_bim = self.bim.get_chunk(self.iterator.snp_chunk_size)
-            chunk_fam = self.fam.get_chunk(self.iterator.sample_chunk_size)
-            chunk_cov = self.cov.get_chunk(self.iterator.sample_chunk_size)
-            return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
+            reset = True
+        
+        chunk_bed = self.bed.get_chunk(chunk_size, reset=reset)
+        chunk_bim = self.bim.get_chunk(chunk_size)
+        chunk_fam = self.fam.get_chunk(chunk_size)
+        chunk_cov = self.cov.get_chunk(chunk_size)
+        self.reset()
+        print('chunk_bed', chunk_bed.shape)
+        print('chunk_bim', chunk_bim.shape)
+        print('chunk_fam', chunk_fam.shape)
+        print('chunk_cov', chunk_cov.shape)
+        return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
     
     def __iter__(self):
         return self
     
     def __next__(self):
         return self.get_chunk(self.iterator.chunk_size)
-            
 
 
-
+def assert_GWASData_is_equal(GWASData1, GWASData2, standard=True):
+    # if standard:
+    #     GWASData1.standard()
+    #     GWASData2.standard()
+    GWASData1_properties = vars(GWASData1)
+    GWASData2_properties = vars(GWASData2)
+    for key in GWASData1_properties.keys():
+        v1 = GWASData1_properties[key]
+        v2 = GWASData2_properties[key]
+        if type(v1) is np.ndarray:
+            np.testing.assert_allclose(v1, v2, equal_nan=True)
+        elif type(v1) is pd.DataFrame:
+            pd.testing.assert_frame_equal(v1, v2)
 
 
 

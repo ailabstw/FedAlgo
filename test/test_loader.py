@@ -385,7 +385,7 @@ class CovIteratorTestCase(unittest.TestCase):
         pd.testing.assert_frame_equal(self.cov, result)
 
 
-class BimIterator(unittest.TestCase):
+class BimIteratorTestCase(unittest.TestCase):
 
     def setUp(self):
         bed = gwasprs.loader.read_bed(bfile_path)
@@ -431,3 +431,95 @@ class BimIterator(unittest.TestCase):
         result = pd.concat(total_blocks, axis=0)
 
         pd.testing.assert_frame_equal(self.bim, result)
+
+
+class GWASDataIteratorTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.bed = gwasprs.loader.read_bed(bfile_path)
+        self.n_SNP = self.bed.sid_count
+        self.n_sample = self.bed.iid_count
+        self.snp_chunk_size = 15
+        self.sample_chunk_size = 11
+        self.get_chunk_sample_list = [12, 10, 8, 20, 11] # 61
+        self.get_chunk_snp_list = [23, 17, 2, 11, 14, 34] # 101
+
+        fam = gwasprs.loader.read_fam(bfile_path)
+        self.fam = gwasprs.loader.format_fam(fam, pheno_path, 'pheno')
+        cov = gwasprs.loader.read_cov(cov_path)
+        self.cov = gwasprs.loader.format_cov(cov, self.fam)
+        self.bim = gwasprs.loader.read_bim(bfile_path)
+
+    def tearDown(self):
+        self.bed = None
+        self.fam = None
+        self.cov = None
+        self.bim = None
+    
+    def test_only_sample_get_chunk(self):
+        iterator = gwasprs.loader.SampleIterator(self.n_sample, self.sample_chunk_size)
+        GWASDataIterator = gwasprs.loader.GWASDataIterator.SampleWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+
+        for idx in iterator:
+            bed = self.bed.read(index=idx)
+            bim = self.bim
+            fam = self.fam.loc[idx[0]]
+            cov = self.cov.loc[idx[0]]
+            ans = gwasprs.loader.GWASData(bed, fam, bim, cov)
+            print('chunk_size', len(idx[0]))
+            result = GWASDataIterator.get_chunk(len(idx[0]))
+
+            gwasprs.loader.assert_GWASData_is_equal(ans, result)
+            
+    def test_only_snp_get_chunk(self):
+        iterator = gwasprs.loader.SNPIterator(self.n_SNP, self.snp_chunk_size)
+        GWASDataIterator = gwasprs.loader.GWASDataIterator.SNPWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+        
+        for idx in iterator:
+            bed = self.bed.read(index=idx)
+            bim = self.bim.loc[idx[1]]
+            fam = self.fam
+            cov = self.cov
+            ans = gwasprs.loader.GWASData(bed, fam, bim, cov)
+
+            result = GWASDataIterator.get_chunk(len(idx[1]))
+
+            gwasprs.loader.assert_GWASData_is_equal(ans, result)
+
+    def test_sample_snp_get_chunk(self):
+        ans = self.bed.read()
+
+        iterator = gwasprs.loader.SampleIterator(self.n_sample, self.sample_chunk_size).snps(self.n_SNP, self.snp_chunk_size)
+        pass
+
+    def test_snp_sample_get_chunk(self):
+        ans = self.bed.read()
+
+        iterator = gwasprs.loader.SNPIterator(self.n_SNP, self.snp_chunk_size).samples(self.n_sample, self.sample_chunk_size)
+        pass
+
+    def test_only_sample_next(self):
+        ans = self.bed.read()
+        
+        iterator = gwasprs.loader.SampleIterator(self.n_sample, self.sample_chunk_size)
+        pass
+
+    def test_only_snp_next(self):
+        ans = self.bed.read()
+
+        iterator = gwasprs.loader.SNPIterator(self.n_SNP, self.snp_chunk_size)
+        pass
+
+    def test_sample_snp_next(self):
+        ans = self.bed.read()
+
+        iterator = gwasprs.loader.SampleIterator(self.n_sample, self.sample_chunk_size).snps(self.n_SNP, self.snp_chunk_size)
+        pass
+
+    def test_snp_sample_next(self):
+        ans = self.bed.read()
+
+        iterator = gwasprs.loader.SNPIterator(self.n_SNP, self.snp_chunk_size).samples(self.n_sample, self.sample_chunk_size)
+        pass
+
+    
