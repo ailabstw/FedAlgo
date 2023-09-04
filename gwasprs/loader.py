@@ -1,93 +1,19 @@
-from typing import Any, List, Set
-import pandas as pd
+from typing import List, Set
 import os
 import copy
 import logging
+
 import numpy as np
-from bed_reader import open_bed
-import abc
+import pandas as pd
+
+from .reader import read_snp_list, read_ind_list, BedReader, FamReader, CovReader, BimReader, PhenotypeReader
+from .iterator import IndexIterator, SNPIterator, SampleIterator
+
 
 AUTOSOME_LIST = ()
 for i in range(1,23):
     AUTOSOME_LIST += (i, str(i), f'chr{i}')
 
-def read_bed(bfile_path):
-    return open_bed(f'{bfile_path}.bed')
-
-def fam_setter(FAM):
-    FAM.columns = ['FID','IID','P','M','SEX','PHENO1']
-    FAM.FID = FAM.FID.astype(str)
-    FAM.IID = FAM.IID.astype(str)
-    return FAM
-
-def bim_setter(BIM):
-    BIM.columns = ['CHR','ID','cM','POS','A1','A2']
-    BIM.A1 = BIM.A1.astype(str).replace('0','.')
-    BIM.A2 = BIM.A2.astype(str).replace('0','.')
-    BIM.ID = BIM.ID.astype(str)
-    return BIM
-
-def cov_setter(COV):
-    COV.FID = COV.FID.astype(str)
-    COV.IID = COV.IID.astype(str)
-    return COV.drop_duplicates(subset = ['FID','IID'])
-
-def pheno_setter(PHENO):
-    PHENO.columns = ['FID','IID','PHENO1']
-    PHENO.FID = PHENO.FID.astype(str)
-    PHENO.IID = PHENO.IID.astype(str)
-    return PHENO
-
-def read_fam(bfile_path):
-    return fam_setter(pd.read_csv(f'{bfile_path}.fam', sep='\s+', header=None))
-
-def read_bim(bfile_path):
-    return bim_setter(pd.read_csv(f'{bfile_path}.bim', sep='\s+', header=None))
-
-def read_cov(cov_path):
-    sep = ',' if '.csv' in cov_path else '\s+'
-    COV = pd.read_csv(cov_path, sep=sep)
-    return cov_setter(COV)
-
-def read_pheno(pheno_path, pheno_name):
-    sep = ',' if '.csv' in pheno_path else '\s+'
-    PHENO = pd.read_csv(pheno_path, sep=sep)
-    PHENO = PHENO[['FID','IID',pheno_name]]
-    return pheno_setter(PHENO)
-
-def read_snp_list(snp_list_path):
-    """
-    Read a snp list from a given path.
-    """
-    SNP_df = pd.read_csv(snp_list_path, sep='\s+', header=None)
-    SNP_df.columns = ['ID']
-    return SNP_df
-
-def read_ind_list(ind_list_path):
-    """
-    Read a sample list from a given path.
-    """
-    IND_df = pd.read_csv(ind_list_path, sep='\s+', header=None).iloc[:,:2]
-    IND_df.columns = ['FID','IID']
-    return IND_df
-
-def format_cov(COV, FAM):
-    """
-    Read covarities from a given path and map to the corresponding FAM file.
-    """
-    # the samples in .fam missing covariate values will fill with NaNs
-    return FAM[['FID','IID']].merge(COV, on=['FID','IID'], how='left', sort=False)
-
-def format_fam(FAM, pheno_path=None, pheno_name=None):
-    """
-    Replace the FAM file with the corresponding pheno file.
-    """
-    if pheno_path is not None:
-        PHENO = read_pheno(pheno_path, pheno_name)
-        FAM.drop(columns='PHENO1', inplace=True)
-        # the samples in .fam missing phenotypes values will fill with NaNs
-        FAM = FAM.merge(PHENO, on=['FID','IID'], how='left', sort=False)
-    return FAM
 
 def get_mask_idx(df):
     """
@@ -135,13 +61,13 @@ def dropped_info(data, subset, cols):
 
 def update_dropped(prev, update):
     return pd.concat([prev, update]).reset_index(drop=True)
-        
+
 def subset_samples(sample_list:(str, list, tuple), data, order=False, list_is_idx=False):
     """
     Args:
         sample_list (str, list, tuple) : could be a list of sample IDs, a path to sample list file or a list of sample indices.
         data (pd.DataFrame) : the data to be extracted.
-    
+
     Returns:
         subset_data (pd.DataFrame) : the subset of the data (the index of the subset_data has been reset)
         sample_idx : the indices of sample list in "data", not the indices in "subset_data".
@@ -163,13 +89,13 @@ def subset_samples(sample_list:(str, list, tuple), data, order=False, list_is_id
 
     if len(subset_data) == 0:
         raise IndexError
-    
+
     # Get the indices of samples in original data for getting the ordered genotype matrix.
     sample_idx = subset_data.merge(data.reset_index())['index'].to_list()
 
     # Dropped data
     dropped_data = dropped_info(data, subset_data, ['FID','IID'])
-    
+
     return subset_data, sample_idx, dropped_data
 
 def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=False):
@@ -177,7 +103,7 @@ def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=Fals
     Args:
         snp_list (str, list, tuple) : could be a list of SNP IDs, a path to snp list file or a list of snp indices.
         data (pd.DataFrame) : the data to be extracted.
-    
+
     Returns:
         subset_data (pd.DataFrame) : the subset of the data (the index of the subset_data has been reset)
         snp_idx : the indices of snp list in "data", not the indices in "subset_data".
@@ -190,16 +116,16 @@ def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=Fals
         snp_df = pd.DataFrame({'ID':snp_list})
     else:
         snp_df = data.iloc[snp_list,1].reset_index(drop=True)
-    
+
     # Follow the order of the snp_list
     if order:
         subset_snps = snp_df.merge(data, on=['ID'])
     else:
         subset_snps = data.merge(snp_df, on=['ID'])
-    
+
     if len(subset_snps) == 0:
         raise IndexError
-    
+
     # Get the indices of snps in original data for getting the ordered genotype matrix.
     snp_idx = subset_snps.merge(data.reset_index())['index'].to_list()
 
@@ -271,7 +197,7 @@ class GWASData:
             dropped_cov (pd.DataFrame)
             dropped_bim (pd.DataFrame)
 
-    
+
     drop_missing_samples():
         Drop samples whose phenotype or covariates contain missing values ('', NaN, -9, -9.0).
 
@@ -291,13 +217,13 @@ class GWASData:
     """
     def __init__(self, GT, fam, bim, cov):
         self.__dict__.update(locals())
-        self.__dict__.update({f'dropped_{data}':pd.DataFrame() for data in ['fam', 'bim', 'cov']})
+        self.__dict__.update({f'dropped_{data}': pd.DataFrame() for data in ['fam', 'bim', 'cov']})
 
     def standard(self):
         self.subset()
         self.drop_missing_samples()
         self.add_unique_snp_id()
-    
+
     def custom(self, **kwargs):
         self.subset(**kwargs)
 
@@ -348,39 +274,39 @@ class GWASData:
     @property
     def phenotype(self):
         return self.fam
-    
+
     @property
     def sample_id(self):
         return list(zip(self.fam.FID, self.fam.IID))
-    
+
     @property
     def covariate(self):
         return self.cov
-    
+
     @property
     def snp_id(self):
         return list(self.bim.ID)
-    
+
     @property
     def autosome_snp_id(self):
         return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].ID)
-    
+
     @property
     def rsID(self):
         return list(self.bim.rsID)
-    
+
     @property
     def autosome_rsID(self):
         return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].rsID)
-    
+
     @property
     def allele(self):
         return list(zip(self.bim.A1, self.bim.A2))
-    
+
     @property
     def genotype(self):
         return self.GT
-    
+
     @property
     def snp_table(self):
         assert 'rsID' in self.bim.columns
@@ -390,391 +316,81 @@ class GWASData:
     def autosome_snp_table(self):
         assert 'rsID' in self.bim.columns
         return create_snp_table(self.autosome_snp_id, self.autosome_rsID)
-    
+
     @property
     def dropped_phenotype(self):
         return self.dropped_fam
-    
+
     @property
     def dropped_covariate(self):
         return self.dropped_cov
-    
+
     @property
     def dropped_snp(self):
         return self.dropped_bim
 
 
-def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
-    bed = read_bed(bfile_path)
-    GT = bed.read()
-    fam = read_fam(bfile_path)
-    fam = format_fam(fam, pheno_path, pheno_name)
-    bim = read_bim(bfile_path)
-    cov = read_cov(cov_path)
-    cov = format_cov(cov, fam)
-    return GWASData(GT, fam, bim, cov)
-    
+def format_cov(cov: pd.DataFrame, fam: pd.DataFrame):
+    """
+    Read covarities from a given path and map to the corresponding FAM file.
+    """
+    # the samples in .fam missing covariate values will fill with NaNs
+    return fam[['FID','IID']].merge(cov, on=['FID','IID'], how='left', sort=False)
+
+
+def format_fam(fam: pd.DataFrame, pheno: pd.DataFrame):
+    """
+    Replace the FAM file with the corresponding pheno file.
+    """
+    fam.drop(columns='PHENO1', inplace=True)
+    # the samples in .fam missing phenotypes values will fill with NaNs
+    fam = fam.merge(pheno, on=['FID','IID'], how='left', sort=False)
+    return fam
+
+
 def format_sample_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
     """
     """
-    fam = read_fam(bfile_path)
-    fam = format_fam(fam, pheno_path, pheno_name)
-    fam.to_csv('iterative.fam', index=None)
+    fam = FamReader(bfile_path).read()
+    if pheno_path is not None:
+        pheno = PhenotypeReader(pheno_path, pheno_name)
+        fam = format_fam(fam, pheno)
+
     if cov_path:
-        cov = read_cov(cov_path)
+        cov = CovReader(cov_path).read()
         cov = format_cov(cov, fam)
-        cov.to_csv('iterative.cov', index=None)
-
-class IndexIterator(abc.ABC):
-    def __init__(self, n_features, chunk_size:int=1000, skip_idx:(list, range)=None):
-        self.n_features = n_features
-        self.current_idx = 0
-        self.chunk_size = chunk_size
-        self.skip_idx = skip_idx
-    
-    def keep_features(self, chunk_size):
-        interval = (self.current_idx, min(self.current_idx+chunk_size, self.n_features))
-        if self.skip_idx:
-            keep_features = list(set(range(*interval)).difference(self.skip_idx))
-        else:
-            keep_features = range(*interval)
-        return keep_features
-    
-    def reset(self):
-        self.current_idx = 0
-
-    def is_end(self):
-        return self.current_idx >= self.n_features
-
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        if self.current_idx < self.n_features:
-            idx = self.keep_features(self.chunk_size)
-            self.current_idx += self.chunk_size
-            return idx
-        else:
-            raise StopIteration
-
-class SNPIterator(IndexIterator):
-    def __init__(self, n_SNP, chunk_size:int=1000, skip_idx:(list, range)=None):
-        super().__init__(n_SNP, chunk_size, skip_idx)
-        self.n_SNP = n_SNP
-        self.sample_iterator = None
-    
-    def keep_idx(self, chunk_size):
-        if self.sample_iterator:
-            sample_idx = next(self.sample_iterator)
-            return np.s_[sample_idx, self.keep_features(chunk_size)]
-        else:
-            return np.s_[:, self.keep_features(chunk_size)]
-        
-    def samples(self, n_sample, chunk_size:int=1000, skip_idx:(list, range)=None):
-        self.sample_iterator = IndexIterator(n_sample, chunk_size, skip_idx)
-        return self
-    
-    def get_chunk(self, chunk_size, reset=True):
-        """
-        Usage:
-            SNPIterator.get_chunk()
-                the next SNP idx starts from current_idx + chunk_size
-
-            SNPIterator.get_chunk(reset=False)
-                the next SNP idx starts from current_idx + chunk_size
-
-            SNPIterator.samples().get_chunk()
-                the next SNP idx starts from current_idx + chunk_size
-                the next Sample idx starts from 0
-
-            SNPIterator.samples().get_chunk(reset=False)
-                if Sample idx approch the end,
-                the next SNP idx starts from current_idx + chunk_size
-                the next Sample idx starts from 0
-
-                otherwise,
-                the next SNP idx starts from current_idx
-                the next Sample idx starts from current_idx + chunk_size
-        
-        More explicit usage can be found in unittest.
-        """
-        if self.current_idx < self.n_SNP:
-            idx = self.keep_idx(chunk_size)
-            self.current_idx += chunk_size
-            # reset was used to prevent StopIteration caused by sample_iterator
-            if self.sample_iterator and (self.sample_iterator.is_end() or reset):
-                self.sample_iterator.reset()
-            # don't jump to the next chunk until reaching the end
-            elif self.sample_iterator and not reset:
-                self.current_idx -= chunk_size
-            return idx
-        else:
-            raise StopIteration
-
-    def __next__(self):
-        return self.get_chunk(self.chunk_size, reset=False)
-    
-    @property
-    def category(self):
-        if self.sample_iterator:
-            return 'snp-sample'
-        else:
-            return 'snp'
-
-class SampleIterator(IndexIterator):
-    def __init__(self, n_sample, chunk_size:int=1000, skip_idx:(list, range)=None):
-        super().__init__(n_sample, chunk_size, skip_idx)
-        self.n_sample = n_sample
-        self.snp_iterator = None
-    
-    def keep_idx(self, chunk_size):
-        if self.snp_iterator:
-            snp_idx = next(self.snp_iterator)
-            return np.s_[self.keep_features(chunk_size), snp_idx]
-        else:
-            return np.s_[self.keep_features(chunk_size), :]
-    
-    def snps(self, n_SNP, chunk_size:int=1000, skip_idx:(range, list)=None):
-        self.snp_iterator = IndexIterator(n_SNP, chunk_size, skip_idx)
-        return self
-
-    def get_chunk(self, chunk_size, reset=True):
-        """
-        Usage:
-            SampleIterator.get_chunk()
-                the next Sample idx starts from current_idx + chunk_size
-
-            SampleIterator.get_chunk(reset=False)
-                the next Sample idx starts from current_idx + chunk_size
-
-            SampleIterator.snps().get_chunk()
-                the next Sample idx starts from current_idx + chunk_size
-                the next SNP idx starts from 0
-
-            SampleIterator.snps().get_chunk(reset=False)
-                if SNP idx approch the end,
-                the next Sample idx starts from current_idx + chunk_size
-                the next SNP idx starts from 0
-
-                otherwise,
-                the next Sample idx starts from current_idx
-                the next SNP idx starts from current_idx + chunk_size
-        
-        More explicit usage can be found in unittest.
-        """
-        if self.current_idx < self.n_sample:
-            idx = self.keep_idx(chunk_size)
-            self.current_idx += chunk_size
-            # reset was used to prevent StopIteration caused by snp_iterator
-            if self.snp_iterator and (self.snp_iterator.is_end() or reset):
-                self.snp_iterator.reset()
-            # don't jump to the next chunk until reaching the end
-            elif self.snp_iterator and not reset:
-                self.current_idx -= chunk_size
-            return idx
-        else:
-            raise StopIteration
-
-    def __next__(self):
-        return self.get_chunk(self.chunk_size, reset=False)
-    
-    @property
-    def category(self):
-        if self.snp_iterator:
-            return 'sample-snp'
-        else:
-            return 'sample'
+    else:
+        cov = None
+    return fam, cov
 
 
-class BedIterator:
-    def __init__(self, bfile_path:str, iterator:(SampleIterator|SNPIterator)):
-        self.bed = read_bed(bfile_path)
-        self.iterator = iterator
-    
-    def read(self):
-        return self.bed.read()
-    
-    def get_chunk(self, chunk_size, reset=True):
-        # the chunk_size is the sample chunk size of SampleIterator(SNPIterator)
-        # the chunk_size is the snp chunk size of SNPIterator(SampleIterator)
-        idx = self.iterator.get_chunk(chunk_size, reset)
-        return self.bed.read(index=idx)
-        
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        idx = next(self.iterator)
-        return self.bed.read(index=idx)
-    
-class FamIterator:
-    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator:(SampleIterator|None)=None):
-        format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
-        self.fam = pd.read_csv('iterative.fam', iterator=True)
-        self.iterator = iterator
-        if type(self.iterator) is SampleIterator or type(self.iterator) is type(None):
-            self.static = False
-        else:
-            raise TypeError('iterator only supports SampleIterator and NoneType.')
-    
-    def read(self):
-        return fam_setter(self.fam.read())
-    
-    def to_static(self):
-        self.static = True
-        self.fam = self.read()
-    
-    def reset(self):
-        self.fam = pd.read_csv('iterative.fam', iterator=True)
-    
-    def get_chunk(self, chunk_size):
-        if not self.static:
-            fam = self.fam.get_chunk(chunk_size)
-            if self.iterator:
-                idx = self.iterator.get_chunk(chunk_size)
-                idx = np.s_[idx[0],:] # ignore snp index
-                return fam_setter(fam).loc[idx]
-            else:
-                return fam_setter(fam)
-        else:
-            # Static mode ignores chunk_size information
-            return self.fam
-    
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        if not self.static:
-            return self.get_chunk(self.iterator.chunk_size)
-        else:
-            raise AttributeError("Static mode cannot perform iteration. Please use `get_chunk()` to get the static data.")
-    
-class CovIterator:
-    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', iterator:(SampleIterator|None)=None):
-        format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
-        if cov_path:
-            self.cov = pd.read_csv('iterative.cov', iterator=True)
-        else:
-            self.cov = None
-            
-        self.iterator = iterator
-        if type(self.iterator) is SampleIterator or type(self.iterator) is type(None):
-            if self.cov:
-                self.static = False
-            else:
-                self.to_static()
-        else:
-            raise TypeError('iterator only supports SampleIterator and NoneType.')
-
-    def read(self):
-        if self.cov:
-            return cov_setter(self.cov.read())
-        else:
-            return None
-    
-    def to_static(self):
-        self.static = True
-        self.cov = self.read()
-    
-    def reset(self):
-        if self.cov: self.cov = pd.read_csv('iterative.cov', iterator=True)
-    
-    def get_chunk(self, chunk_size):
-        if self.cov is not None and not self.static:
-            cov = self.cov.get_chunk(chunk_size)
-            if self.iterator:
-                idx = self.iterator.get_chunk(chunk_size)
-                idx = np.s_[idx[0],:] # ignore snp index
-                return cov_setter(cov).loc[idx]
-            else:
-                return cov_setter(cov)
-        else:
-            # Allowing static mode iteration is because 
-            # cov could be missing when fam iterator is dynamic mode, and they should share the same index iterator.
-            if self.iterator:
-                self.iterator.get_chunk(chunk_size)
-            return self.cov
-
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        return self.get_chunk(self.iterator.chunk_size)
-    
-class BimIterator:
-    def __init__(self, bfile_path, iterator:(SNPIterator|None)=None):
-        self.bim = pd.read_csv(f'{bfile_path}.bim', iterator=True, sep='\s+', header=None)
-        self.bfile_path = bfile_path
-        self.iterator = iterator
-        
-        if type(self.iterator) is SNPIterator or type(self.iterator) is type(None):
-            self.static = False
-        else:
-            raise TypeError('iterator only supports SNPIterator and NoneType.')
-
-    def read(self):
-        bim = self.bim.read()
-        return bim_setter(bim)
-
-    def to_static(self):
-        self.static = True
-        self.bim = self.read()
-
-    def reset(self):
-        self.bim = pd.read_csv(f'{self.bfile_path}.bim', iterator=True, sep='\s+', header=None)
-    
-    def get_chunk(self, chunk_size):
-        if not self.static:
-            bim = self.bim.get_chunk(chunk_size)
-            if self.iterator:
-                idx = self.iterator.get_chunk(chunk_size)
-                idx = np.s_[idx[1],:] # ignore sample index
-                return bim_setter(bim).loc[idx]
-            else:
-                return bim_setter(bim)
-        else:
-            # Static mode ignores chunk_size information
-            return self.bim
-
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        if not self.static:
-            return self.get_chunk(self.iterator.chunk_size)
-        else:
-            raise AttributeError("Static mode cannot perform iteration. Please use `get_chunk()` to get the static data.")
+def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+    GT = BedReader(bfile_path).read()
+    bim = BimReader(bfile_path).read()
+    fam, cov = format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
+    return GWASData(GT, fam, bim, cov)
 
 
 
 class GWASDataIterator:
-    def __init__(self, bed:BedIterator, bim:BimIterator, fam:FamIterator, cov:CovIterator, iterator:(SampleIterator|SNPIterator)):
-        self.__dict__.update(locals())
-        self.prev_idx = None
 
-    @staticmethod
-    def SampleWise(bfile_path, iterator:SampleIterator,
-                  cov_path=None, pheno_path=None, pheno_name='PHENO1'):
-        bed = BedIterator(bfile_path, copy.deepcopy(iterator))
-        bim = BimIterator(bfile_path)
-        fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name, copy.deepcopy(iterator))
-        cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name, copy.deepcopy(iterator))
-        if iterator.category == 'sample':
-            bim.to_static()
-        return GWASDataIterator(bed, bim, fam, cov, copy.deepcopy(iterator))
+    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', style="sample-snp", sample_step = 1, snp_step = 1):
+        self.bedreader = BedReader(bfile_path)
+        self.bimreader = BimReader(bfile_path)
+        self.famreader = FamReader(bfile_path, cov_path, pheno_path, pheno_name)
+        self.covreader = CovReader(bfile_path, cov_path, pheno_path, pheno_name)
 
-    @staticmethod
-    def SNPWise(bfile_path, iterator:SNPIterator,
-                  cov_path=None, pheno_path=None, pheno_name='PHENO1'):
-        bed = BedIterator(bfile_path, copy.deepcopy(iterator))
-        bim = BimIterator(bfile_path, copy.deepcopy(iterator))
-        fam = FamIterator(bfile_path, cov_path, pheno_path, pheno_name)
-        cov = CovIterator(bfile_path, cov_path, pheno_path, pheno_name)
-        if iterator.category == 'snp':
-            fam.to_static()
-            cov.to_static()
-        return GWASDataIterator(bed, bim, fam, cov, copy.deepcopy(iterator))
-    
+        if style == "sample":
+            self.iterator = SampleIterator(self.bedreader.n_sample, sample_step)
+        elif style == "snp":
+            self.iterator = SNPIterator(self.bedreader.n_snp, snp_step)
+        elif style == "sample-snp":
+            self.iterator = SampleIterator(self.bedreader.n_sample, sample_step).snps(self.bedreader.n_snp, snp_step)
+        elif style == "snp-sample":
+            self.iterator = SNPIterator(self.bedreader.n_snp, snp_step).samples(self.bedreader.n_sample, sample_step)
+        else:
+            raise Exception(f"{style} style is not supported.")
+
     def reset(self):
         if self.iterator.category == 'sample-snp' and self.iterator.snp_iterator.n_features == self.prev_idx[1][-1]+1:
             self.bim.reset()
@@ -782,41 +398,20 @@ class GWASDataIterator:
             self.fam.reset()
             self.cov.reset()
 
-    def get_chunk(self, chunk_size):
-        if self.iterator.category == 'sample-snp' or self.iterator.category == 'snp-sample':
-            reset = False
-        else:
-            reset = True
+    def increase_step(self, step):
+        snp_slc, sample_slc = self.iterator.increase_step(step)
+        chunk_bed = self.bedreader[sample_slc, snp_slc]
+        chunk_fam = self.fam[sample_slc, :]
+        chunk_cov = self.cov[sample_slc, :]
+        chunk_bim = self.bim[snp_slc, :]
+        return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
 
-        chunk_bed = self.bed.get_chunk(chunk_size, reset=reset)
-        
-        idx = self.iterator.get_chunk(chunk_size, reset=reset)
-        sample_size = len(idx[0]) if idx[0] != slice(None) else 0
-        snp_size = len(idx[1]) if idx[1] != slice(None) else 0
-
-        if self.prev_idx is None:
-            self.prev_idx = idx
-            self.chunk_fam = self.fam.get_chunk(sample_size)
-            self.chunk_cov = self.cov.get_chunk(sample_size)
-            self.chunk_bim = self.bim.get_chunk(snp_size)
-
-        if self.prev_idx[0] != idx[0]:
-            self.chunk_fam = self.fam.get_chunk(sample_size)
-            self.chunk_cov = self.cov.get_chunk(sample_size)
-        
-        if self.prev_idx[1] != idx[1]:
-            self.chunk_bim = self.bim.get_chunk(snp_size)
-
-        self.prev_idx = idx
-        self.reset()
-        
-        return GWASData(chunk_bed, self.chunk_fam, self.chunk_bim, self.chunk_cov)
-    
     def __iter__(self):
         return self
-    
+
     def __next__(self):
-        return self.get_chunk(self.iterator.chunk_size)
+        return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
+        # return self.get_chunk(self.iterator.chunk_size)
 
 
 def assert_GWASData_is_equal(GWASData1, GWASData2):
@@ -834,16 +429,17 @@ def assert_GWASData_is_equal(GWASData1, GWASData2):
 
 
 
+# Deprecation
 
 class GwasDataLoader():
-    
-    def __init__(self, 
+
+    def __init__(self,
             bed_path: str,
             pheno_path: str = None,
             pheno_name: str = 'PHENO1',
             cov_path: str = None,
-            snp_list: str = None, 
-            ind_list: str = None, 
+            snp_list: str = None,
+            ind_list: str = None,
             mean_fill_na_flag: bool = False,
             read_all_gt_flag: bool = False,
             rename_snp_flag: bool = True,
@@ -867,16 +463,19 @@ class GwasDataLoader():
     def read_in(self):
         logging.info(f"Start read file")
 
-        self.BED = read_bed(self.bed_path)
-        fam = read_fam(self.bed_path)
-        self.FAM = format_fam(fam, self.pheno_path, self.pheno_name)
-        self.BIM = read_bim(self.bed_path)
+        self.BED = BedReader(self.bed_path).read()
+        fam = FamReader(self.bed_path).read()
+        if self.pheno_path is not None:
+            pheno = PhenotypeReader(self.pheno_path, self.pheno_name).read()
+            fam = format_fam(fam, pheno)
+        self.FAM = fam
+        self.BIM = BimReader(self.bed_path).read()
         if self.cov_path and os.path.exists(str(self.cov_path)):
-            cov = read_cov(self.cov_path) 
-            self.COV =  format_cov(cov, self.FAM)
+            cov = CovReader(self.cov_path).read()
+            self.COV = format_cov(cov, self.FAM)
             if self.mean_fill_na_flag:
                 self.COV = impute_cov(self.COV)
-            
+
         # filter
         if self.snp_list:
             _, self.snp_idx_list, __ = subset_snps(self.snp_list, self.BIM)
@@ -896,9 +495,9 @@ class GwasDataLoader():
             self.BIM['Original_ID'] = self.BIM['ID']
             self.BIM['ID'] = new_snp_id
         self.read_in_flag = True
-    
-    
-    
+
+
+
     ####### Get info #######
     def get_geno(self):
         if self.read_all_gt_flag:
@@ -915,7 +514,7 @@ class GwasDataLoader():
 
     def get_pheno(self):
         return self.FAM.PHENO1.values
-    
+
     def get_sample(self):
         fid_iid_list = list(zip(self.FAM.FID.values, self.FAM.IID.values))
         return fid_iid_list
@@ -941,7 +540,7 @@ class GwasDataLoader():
 
     def get_snp_table(self, autosome_only = True, dedup = True):
         assert self.rename_snp_flag
-        snp_list_ori = self.get_snp(autosome_only=autosome_only) 
+        snp_list_ori = self.get_snp(autosome_only=autosome_only)
         snp_list_old = self.get_old_snp(autosome_only=autosome_only)
         return create_snp_table(snp_list_ori, snp_list_old)
 
@@ -950,10 +549,10 @@ class GwasDataLoader():
 
     def get_cov(self, add_bias_flag = True):
         ll = len(self.FAM.FID.values)
-        
+
         COV = None
         if os.path.exists(str(self.cov_path)):
-            COV = self.COV.iloc[:,2:].values 
+            COV = self.COV.iloc[:,2:].values
             if add_bias_flag:
                 BIAS = np.ones((ll,1), dtype = COV.dtype)
                 COV = np.concatenate(( BIAS, COV), axis=1)
@@ -970,11 +569,11 @@ class GwasSnpIterator():
     This class iter through snp
     iter read snp
     '''
-    
+
     def __init__(self, GwasDataLoader: GwasDataLoader, batch_size: int, snp_name_list: List[str] = [], swap_flag: bool = True):
         if not GwasDataLoader.read_in_flag:
             GwasDataLoader.read_in()
-            
+
         # GwasDataLoader data
         self.BED = GwasDataLoader.BED
         self.FAM = GwasDataLoader.FAM
@@ -983,11 +582,11 @@ class GwasSnpIterator():
         self.snp_idx_list = list(GwasDataLoader.snp_idx_list)
         self.ind_idx_list = list(GwasDataLoader.ind_idx_list)
         self.swap_flag = swap_flag
-        
+
         # self arg
         self.batch_size = batch_size
         self.build_flag = False
-        
+
         self.build(snp_name_list)
 
     def build(self, snp_name_list: List[str] = []):
@@ -1005,25 +604,25 @@ class GwasSnpIterator():
         self._end = self.batch_size
         self.cc = 0
         self.build_flag = True
-    
+
     def __iter__(self):
         for _ in range(self.total_step):
             logging.debug(f"Get batch {self.cc}")
             yield self.__next__()
 
     def __next__(self):
-            
+
         snp_idx_list = np.array(list(self.snp_idx_list))[self._start:self._end]
         idx_list = np.s_[self.ind_idx_list,snp_idx_list]
         GT = self.BED.read(index=idx_list)
         BIM = self.BIM.iloc[snp_idx_list,:].copy()
         self._update()
-        
+
         if self.swap_flag:
             GT, BIM = self.swap_allele(GT, BIM)
-        
+
         return GT, BIM
-        
+
     def __len__(self):
         return self.total_step
 
@@ -1042,7 +641,7 @@ class GwasSnpIterator():
         BIM = BIM.reset_index(drop = True)
         # get swap idx
         BIM.loc[:,"SWAP"] = BIM.A1 > BIM.A2
-        
+
         # swap bim
         BIM.loc[:,"TMP"]  = BIM.A1
         BIM.loc[BIM.SWAP, "A1"] = BIM[BIM.SWAP].A2
@@ -1052,7 +651,7 @@ class GwasSnpIterator():
         # swap gt
         swap_index = BIM[BIM.SWAP].index
         GT[:,swap_index] = np.abs(GT[:,swap_index] - 2)
-        
+
         # reset index
         BIM = BIM.set_index("INDEX", drop = True)
         return GT, BIM
@@ -1066,11 +665,11 @@ class GwasIndIterator():
     This class iter through ind
     read in all snp first
     '''
-    
+
     def __init__(self, GwasDataLoader: GwasDataLoader, batch_size: int ):
         if not GwasDataLoader.read_in_flag:
             GwasDataLoader.read_in()
-            
+
         # GwasDataLoader data
         self.BED = GwasDataLoader.BED
         self.FAM = GwasDataLoader.FAM
@@ -1082,7 +681,7 @@ class GwasIndIterator():
 
         # self arg
         self.batch_size = batch_size
-        
+
         # derived argument
         self.ind_num = len(self.ind_idx_list)
         self.total_step = (self.ind_num // self.batch_size) + 1
@@ -1093,7 +692,7 @@ class GwasIndIterator():
         self._end = self.batch_size
         self.cc = 0
 
-        
+
     def __iter__(self):
         for _ in range(self.total_step):
             logging.debug(f"Get batch {self.cc}")
@@ -1104,9 +703,9 @@ class GwasIndIterator():
         idx_list = np.array(list(self.ind_idx_list))[self._start:self._end]
         GT = self.BED.read(index = np.s_[idx_list,self.snp_idx_list])
         self._update()
-        
+
         return GT
-        
+
     def __len__(self):
         return self.snp_num
 

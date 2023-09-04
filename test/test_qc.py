@@ -5,7 +5,8 @@ import logging
 sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/..')
 
 from gwasprs.qc import cal_qc_client, filter_snp, cal_het_sd, create_filtered_bed, filter_ind
-from gwasprs.loader import read_bim, read_fam, AUTOSOME_LIST
+from gwasprs.loader import AUTOSOME_LIST
+from gwasprs.reader import BimReader, FamReader
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -21,8 +22,8 @@ class QcTestCase(unittest.TestCase):
         self.HET_RANGE = (-0.5, 0.5)
         self.SAMPLE_COUNT = 8000
 
-        BIM = read_bim(f"{self.bed_path}")
-        FAM = read_fam(f"{self.bed_path}")
+        BIM = BimReader(f"{self.bed_path}").read()
+        FAM = FamReader(f"{self.bed_path}").read()
         self.snp_list = BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)].ID.to_numpy()
         self.sample_count = len(FAM.index)
         self.fid_iid_list = list(zip(FAM.FID.values, FAM.IID.values))

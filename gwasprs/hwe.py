@@ -8,7 +8,7 @@ PLINK_HWP = setup_plink_hwp()
 
 
 def read_hardy(out_path: str):
-    HWE = pd.read_csv(f"{out_path}.hardy", sep = "\s+")
+    HWE = pd.read_csv(f"{out_path}.hardy", sep = r"\s+")
     HWE.AX = HWE.AX.astype(str)
     HWE.A1 = HWE.A1.astype(str)
     HWE["AA"] = HWE.TWO_AX_CT
