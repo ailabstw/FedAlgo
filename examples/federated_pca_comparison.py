@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import jax.numpy as jnp
 
-import gwasprs
+import gwasprs 
 
 
 # The plink2 result was saved in plink_out_path
@@ -84,15 +84,14 @@ class PcaUsecase(unittest.TestCase):
         # federated-svd
         params = {
             'As':[jnp.array(A)],
-            'edge_axis':0,
-            'sample_axis':1,
-            'snp_axis':2,
             'k1':20,
             'epsilon':1e-9,
             'max_iterations':20,
             'k2':20,
         }
-        self.usecase_G, self.usecase_H = gwasprs.linalg.federated_svd(**params)
+        self.usecase_G, self.usecase_H = gwasprs.linalg.FederatedSVD.standalone(**params)
+        # self.usecase_G, self.usecase_H = gwasprs.linalg.federated_svd(**params)
+
         self.usecase_G = self.usecase_G[0]
 
     @classmethod

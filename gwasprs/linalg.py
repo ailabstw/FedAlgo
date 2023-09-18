@@ -1,4 +1,5 @@
-from abc import ABCMeta
+import abc
+from typing import Any
 
 import numpy as np
 from jax import jit, vmap
@@ -6,7 +7,8 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import random as jrand
 
-from . import array, stats, project
+from . import stats, aggregations
+from .project import FederatedGramSchmidt
 
 def nansum(A):
     snp_sum = jnp.nansum(A, axis=0)
@@ -190,7 +192,7 @@ def batched_solve_trans_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.nda
     return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (0, 0), 0)(X, y)
 
 
-class LinearSolver(object, metaclass=ABCMeta):
+class LinearSolver(object, metaclass=abc.ABCMeta):
     def __init__(self) -> None:
         pass
 
@@ -251,7 +253,7 @@ class QRSolver(LinearSolver):
 
 
 @jit
-def orthogonal_project(v, ortho, res):
+def orthogonalize(v, ortho, res):
     """Orthogonalize
 
     v - (summation of v's projections on i-1 orthogonalized eigenvectors)
@@ -273,11 +275,6 @@ def orthogonal_project(v, ortho, res):
 def svd(X):
     return jsp.linalg.svd(X, full_matrices=False)
 
-@jit
-def svd_cov_matrix(cov_matrices):
-    cov_matrix = jnp.sum(jnp.asarray(cov_matrices),axis=0)
-    U, S, Vt = jsp.linalg.svd(cov_matrix, full_matrices=False)
-    return U
 
 def randn(n, m, seed=42):
     return jrand.normal(key=jrand.PRNGKey(seed), shape=(n, m))
@@ -315,160 +312,147 @@ def check_eigenvector_convergence(current, previous, tolerance, required=None):
         col = col + 1
     return converged, deltas
 
-def iteration_update(current_H, Hs, current_iteration, max_iterations):
-    if current_iteration < max_iterations:
-        Hs.append(current_H)
-    return current_H, Hs, current_iteration+1
+
+def update_Us(U, Us, current_iteration):
+    Us.append(U)
+    return U, Us, current_iteration+1
 
 
-def init_H(m, k1):
-    """Initial H matrix generation
+def init_rand_U(m, k1):
+    """Initial U matrix generation
 
-    Generate random H matrix with shape (m, k1),
-    where m and k1 represent m SNPs and k1 latent dimensions respectively.
-    original randomized_svd_init_step in aggregator
-
-    Args:
-        m (int) : number of SNPs
-        k1 (int) : latent dimensions of H matrix in SVD and must be <= n samples
-
-    Returns:
-        (np.ndarray[(1,1), np.floating]) : random H matrix
-    """
-    prev_H = randn(m, k1)
-    return prev_H
-
-
-def update_local_H(A, G):
-    """Update H matrix in edge
-
-    H = AG, where H (m, k1), A (m, n) and G (n, k1)
-    original update_H_step in client
+    Generate random U matrix with shape (m, k1),
+    where m and k1 represent m features and k1 latent dimensions respectively.
 
     Args:
-        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
-        G (np.ndarray[(1,1), np.floating]) : randomly generated and orthonormalized G matrix in the 1st step or updated G matrix during iterations.
+        m (int) : number of features
+        k1 (int) : latent dimensions of U matrix in SVD and must be <= n samples
 
     Returns:
-        (np.ndarray[(1,1), np.floating]) : updated H matrix (m, k1)
+        (np.ndarray[(1,1), np.floating]) : random U matrix
     """
-    H = mmdot(A.T, G)
-    return H
+    prev_U = randn(m, k1)
+    return prev_U
 
 
-def update_global_H(Hs):
-    """Update H matrix in aggregator
+def update_local_U(A, V):
+    """Update U matrix in edge
+
+    U = AV, where U (m, k1), A (m, n) and V (n, k1)
+
+    Args:
+        A (np.ndarray[(1,1), np.floating]) : matrix with shape (m, n), where m and n represent features and samples respectively.
+        V (np.ndarray[(1,1), np.floating]) : randomly generated and orthonormalized V matrix in the 1st step or updated V matrix during iterations.
+
+    Returns:
+        (np.ndarray[(1,1), np.floating]) : updated U matrix (m, k1)
+    """
+    U = mmdot(A.T, V)
+    return U
+
+
+def orthonormalize(M):
+    """Orthonormalize matrix in aggregator
 
     Algo2/10-11
-    Update global H matrix by summation and orthonormalization of H matrix collected from edges.
-    original update_H_step in aggregator
+    orthonormalization of H matrix collected from edges.
 
     Args:
-        Hs (list of np.ndarray[(1,1), np.floating]) : H matrices collected from edges.
+        M (np.ndarray[(1,1), np.floating]) : aggregated matrix collected from edges.
 
     Return:
-        (np.ndarray[(1,1), np.floating]) : updated and orthonormalized H matrix (m, k1)
+        (np.ndarray[(1,1), np.floating]) : orthonormalized matrix (m, k1)
     """
-    H = jnp.sum(jnp.asarray(Hs),axis=0)
-    H, R = jsp.linalg.qr(H, mode='economic')
-
-    return H
+    M, _ = jsp.linalg.qr(M, mode='economic')
+    return M
 
 
-def update_local_G(A, H):
-    """Update G matrix in edge
+def update_local_V(A, U):
+    """Update V matrix in edge
 
-    G = AtH, where G (n, k1), At (n, m) and H (m, k1)
-    original update_G_step in client
+    V = AtU, where V (n, k1), At (n, m) and U (m, k1)
 
     Args:
-        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
-        H (np.ndarray[(1,1), np.floating]) : global H matrix from aggregator with shape (m, k1)
+        A (np.ndarray[(1,1), np.floating]) : matrix with shape (m, n), where m and n represent m features and n samples respectively.
+        H (np.ndarray[(1,1), np.floating]) : global U matrix from aggregator with shape (m, k1)
 
     Returns:
-        (np.ndarray[(1,1), np.floating]) : update G matrix with shape (n, k1)
+        (np.ndarray[(1,1), np.floating]) : update V matrix with shape (n, k1)
     """
-    G = mmdot(A, H)
-    return G
+    V = mmdot(A, U)
+    return V
 
 
-def decompose_H_stack(Hs):
-    """Stack H matrices from I iterations and decompose it
+def decompose_U_stack(Us):
+    """Stack U matrices from I iterations and decompose it
 
-    Each H matrix is the updated H matrix during iterations.
-    The shape of stacked H matrix (Hs) is (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
+    Each U matrix is the updated U matrix during iterations.
+    The shape of stacked U matrix (Us) is (m, k1*I), where m is the number of features, k1 is the latent dimensions
     and I iterations depending on the convergence status and max iterations.
-    original decompose_H_stack_step in aggregator
 
     Args:
-        Hs (list of np.ndarray[(1,1), np.floating]) : H matrices from iterations
+        Us (list of np.ndarray[(1,1), np.floating]) : U matrices from iterations
 
     Returns:
-        (np.ndarray[(1,1), np.floating]) : decomposed H matrix from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
+        (np.ndarray[(1,1), np.floating]) : decomposed U matrix from stacked U matrices with shape (m, k1*I), where m is the number of features, k1 is the latent dimensions
                                            and I iterations depending on the convergence status and max iterations.
     """
-    Hs = jnp.asarray(jnp.concatenate(Hs, axis=1))
-    H, S, G = svd(Hs)
-    return H
+    Us = jnp.hstack(Us)
+    U, _, _ = svd(Us)
+    return U
 
 
-def local_cov_matrix(A, H):
-    """Calculate proxy matrix P and covariance matrix
+def create_proxy_matrix(A, U):
+    """Calculate proxy matrix P
 
-    Algo5/4-5
-    P is the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
-    cov_matrix is covariance matrix with shape (k1*I, k1*I).
+    Algo5/4
+    P is the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and 
+    I iterations depending on the convergence status and max iterations.
 
     Args:
-        A (np.ndarray[(1,1), np.floating]) : genotype matrix with shape (m, n), where m and n represent m SNPs and n samples respectively.
-        H (np.ndarray[(1,1), np.floating]) : H matrix decomposed from stacked H matrices with shape (m, k1*I), where m is the number of SNPs, k1 is the latent dimensions
+        A (np.ndarray[(1,1), np.floating]) : matrix with shape (m, n), where m and n represent m features and n samples respectively.
+        U (np.ndarray[(1,1), np.floating]) : U matrix decomposed from stacked U matrices with shape (m, k1*I), where m is the number of features, k1 is the latent dimensions
                                              and I iterations depending on the convergence status and max iterations.
 
     Returns:
         (np.ndarray[(1,1), np.floating]) : the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
-        (np.ndarray[(1,1), np.floating]) : the inner prodcut of proxy data matrix with shape (k1*I, k1*I) as the covariance matrix.
     """
-    P = mmdot(H, A) # P corresponds to A hat
-    cov_matrix = mmdot(P.T, P.T) # cov_matrix corresponds to M hat
-    return P, cov_matrix
+    P = mmdot(U, A)
+    return P
 
+def covariance_from_proxy_matrix(P):
+    """Calculate covariance matrix from proxy matrix
 
-def decompose_cov_matrices(cov_matrices, k2):
-    """Decompose covariance matrix in aggregator
-
-    Decompose covariance matrix collected from proxy data matrices for each edge.
-    original calculate_cov_matrices_step in aggregator
+    Algo5/5
+    cov is covariance matrix with shape (k1*I, k1*I).
 
     Args:
-        cov_matrices (list of np.ndarray[(1,1), np.floating]) : the covariance matrices collected from edges with shape (k1*I, k1*I) for each matrix,
-                                                                where k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
-        k2 (int) : output latent dimensions of U matrix in SVD and must be <= k1*I.
+        P (np.ndarray[(1,1), np.floating]) : the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and I iterations depending on the convergence status and max iterations.
 
     Returns:
-        (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edges with shape (k1*I, k2)
+        (np.ndarray[(1,1), np.floating]) : the inner prodcut of proxy data matrix with shape (k1*I, k1*I) as the covariance matrix.
     """
-    U = svd_cov_matrix(cov_matrices)[:, :k2]
-    return U
+    cov = mmdot(P.T, P.T)
+    return cov
 
 
-def local_G_from_proxy_matrix(P, U):
-    """Update G matrix and initialize orthonomalization
+def local_V_from_proxy_matrix(P, Vp):
+    """Update V matrix 
 
-    Use proxy data matrix P (k1*I, n) and eigenvectors U (k1*I, k2) from aggregator to get the G matrix with shape (n, k2)
-    original compute_local_G_step
+    Use proxy data matrix P (k1*I, n) and eigenvectors Vp (k1*I, k2) from aggregator to get the V matrix with shape (n, k2)
 
     Args:
         P (np.ndarray[(1,1), np.floating]) : proxy data matrix from edge with shape (k1*I, n)
-        U (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the G matrix in edge with shape (k1*I, k2)
+        Vp (np.ndarray[(1,1), np.floating]) : eigenvectors used for getting the V matrix in edge with shape (k1*I, k2)
 
     Returns:
-        (np.ndarray[(1,1), np.floating]) : the G matrix with shape (n, k2)
+        (np.ndarray[(1,1), np.floating]) : the V matrix with shape (n, k2)
     """
-    G = mmdot(P, U)
-    return G
+    V = mmdot(P, Vp)
+    return V
 
 
-def init_orthonormalization(M):
+def init_gram_schmidt(M):
     """
     This function supports general usage without SVD process.
 
@@ -493,190 +477,314 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
 
     if GT.shape != SIM.shape:
         raise ValueError(f'Inconcordance matrix shapes: {GT.shape} ground truth, {SIM.shape} simulation')
+    
+    I = np.identity(GT.shape[1])
+    def __test(A1, A2):
+        A1tA2 = mmdot(A1,A2)
+        try:
+            np.testing.assert_array_almost_equal(abs(A1tA2), I, decimal=decimal)
+        except AssertionError:
+            print(
+                f"\
+                ====================== Inner product ======================\n\
+                {A1tA2}\n\
+                =========================== A1 ===========================\n\
+                {A1}\n\
+                =========================== A2 ===========================\n\
+                {A2}\n\
+                ==========================================================="
+            )
+    __test(GT, GT)
+    __test(SIM, SIM)
+    __test(GT, SIM)
 
-    def _report(A):
-        I = np.identity(A.shape[0])
-        if np.testing.assert_array_almost_equal(abs(A), I, decimal=decimal) is None:
-            return ('PASSED', True)
+
+class AbsStandardization(abc.ABC):
+    def __init__(self):
+        pass
+
+    def local_col_nansum(self, A):
+        raise NotImplementedError
+    
+    def local_imputed_mean(self, A, mean):
+        raise NotImplementedError
+    
+    def global_mean(self, col_sum, row_count):
+        raise NotImplementedError
+    
+    def local_ssq(self, A, mean):
+        raise NotImplementedError
+    
+    def global_var(self, ssq, row_count):
+        raise NotImplementedError
+    
+    def local_standardize(self, A, var, delete):
+        raise NotImplementedError
+
+
+class FederatedStandardization(AbsStandardization):
+    def __init__(self):
+        super().__init__()
+
+    def local_col_nansum(self, A):
+        col_sum, row_count = stats.nansum(A)
+        jump_to = 'global_mean'
+        return col_sum, row_count, jump_to
+    
+    def local_imputed_mean(self, A, mean):
+        A = stats.impute_with_mean(A, mean)
+        col_sum, row_count = stats.sum_and_count(A)
+        jump_to = 'global_mean'
+        return A, col_sum, row_count, jump_to
+    
+    def global_mean(self, col_sum, row_count):
+        col_sum = aggregations.SumUp()(*col_sum)
+        row_count = aggregations.SumUp()(*row_count)
+        mean = col_sum / row_count
+        if (col_sum.astype(np.int32) == col_sum).all():
+            jump_to = 'local_imputed_mean'
         else:
-            return (f'FAILED\ninner product:\n{A}', False)
+            jump_to = 'local_ssq'
+        return mean, jump_to
+    
+    def local_ssq(self, A, mean):
+        A = stats.make_mean_zero(A, mean)
+        ssq = stats.sum_of_square(A)
+        row_count = A.shape[0]
+        return A, ssq, row_count
+    
+    def global_var(self, ssq, row_count):
+        ssq = aggregations.SumUp()(*ssq)
+        row_count = aggregations.SumUp()(*row_count)
+        var = ssq / (row_count - 1)
+        delete = jnp.where(var==0)[0]
+        var = jnp.delete(var, delete)
+        return var, delete
+    
+    def local_standardize(self, A, var, delete):
+        A = stats.standardize(A, var, delete)
+        return A
+    
+    @classmethod
+    def standalone(cls, As):
+        local_sums, local_counts = [], []
+        for edge_idx in range(len(As)):
+            s, c, _ = cls().local_col_nansum(As[edge_idx])
+            local_sums.append(s)
+            local_counts.append(c)
+        global_mean, _ = cls().global_mean(local_sums, local_counts)
 
-    GT_orthonormal = _report(mmdot(GT,GT))
-    SIM_orthonormal = _report(mmdot(SIM,SIM))
-    concordance = _report(mmdot(GT,SIM))
+        # global mean from imputed data
+        local_sums, local_counts = [], []
+        for edge_idx in range(len(As)):
+            a, s, c, _ = cls().local_imputed_mean(As[edge_idx], global_mean)
+            local_sums.append(s)
+            local_counts.append(c)
+            As[edge_idx] = a
+        global_mean, _ = cls().global_mean(local_sums, local_counts)
 
-    message = f"\
-        =========== Concordance Estimation ===========\n\
-        Ground Truth Orthonormal: {GT_orthonormal[0]}\n\
-        Simulation Orthonormal: {SIM_orthonormal[0]}\n\
-        Concordance between GT and SIM: {concordance[0]}\n\
-        =============================================="
+        # global variance
+        local_ssqs, local_counts = [], []
+        for edge_idx in range(len(As)):
+            a, ssq, c = cls().local_ssq(As[edge_idx], global_mean)
+            local_ssqs.append(ssq)
+            local_counts.append(c)
+            As[edge_idx] = a
+        global_var, delete = cls().global_var(local_ssqs, local_counts)
 
-    print(message)
+        # standardize
+        std_As = []
+        for edge_idx in range(len(As)):
+            std_a = cls().local_standardize(As[edge_idx], global_var, delete)
+            std_As.append(std_a)
 
-    return (GT_orthonormal[1], SIM_orthonormal[1], concordance[1], message)
+        return std_As
+    
+
+class AbsVerticalSubspaceIteration(abc.ABC):
+    def __init__(self):
+        pass
+    
+    def local_init(self, A, k1):
+        raise NotImplementedError
+    
+    def global_init(self, n_features, k1):
+        raise NotImplementedError
+    
+    def update_local_U(self, A, V):
+        raise NotImplementedError
+    
+    def update_global_U(self, U):
+        raise NotImplementedError
+
+    def check_convergence(self, U, prev_U, epsilon):
+        raise NotImplementedError
+
+    def update_global_Us(self, U, Us, current_iteration, max_iterations):
+        raise NotImplementedError
+    
+    def update_local_V(self, A, U, converged, current_iteration, max_iterations):
+        raise NotImplementedError
+    
+class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
+    def __init__(self):
+        super().__init__()
+
+    def local_init(self, A, k1):
+        A = A.T
+        V = randn(A.shape[1], k1)
+        V, _ = jsp.linalg.qr(V, mode='economic')
+        n_features = A.shape[0]
+        return A, V, n_features
+    
+    def global_init(self, n_features, k1):
+        prev_U = init_rand_U(n_features, k1)
+        current_iteration = 1
+        converged = False
+        Us = []
+        return prev_U, current_iteration, converged, Us
+    
+    def update_local_U(self, A, V):
+        U = update_local_U(A, V)
+        return U
+    
+    def update_global_U(self, U):
+        U = aggregations.SumUp()(*U)
+        U = orthonormalize(U)
+        return U
+    
+    def check_convergence(self, U, prev_U, epsilon):
+        converged, _ = check_eigenvector_convergence(U, prev_U, epsilon)
+        return converged
+
+    def update_global_Us(self, U, Us, current_iteration):
+        prev_U, Us, current_iteration = update_Us(U, Us, current_iteration)
+        return prev_U, Us, current_iteration
+    
+    def update_local_V(self, A, U, converged, current_iteration, max_iterations):
+        V = update_local_V(A, U)
+        if not converged and current_iteration < max_iterations:
+            jump_to = 'update_local_U'
+        else:
+            jump_to = 'next'
+        return V, jump_to
+    
+    @classmethod
+    def standalone(cls, As, k1=20, epsilon=1e-9, max_iterations=20):
+        # edge init
+        local_Gs = []
+        for edge_idx in range(len(As)):
+            a, g, f = cls().local_init(As[edge_idx], k1)
+            As[edge_idx] = a
+            local_Gs.append(g)
+
+        # aggregator init
+        prev_H, current_iteration, H_converged, Hs = cls().global_init(f, k1)
+
+        # Vertical subspace iterations
+        while not H_converged and current_iteration < max_iterations:
+            # Update global H
+            hs = []
+            for edge_idx in range(len(As)):
+                h = cls().update_local_U(As[edge_idx], local_Gs[edge_idx])
+                hs.append(h)
+            global_H = cls().update_global_U(hs)
+
+            # Check convergence & save global H
+            H_converged = cls().check_convergence(global_H, prev_H, epsilon)
+            prev_H, Hs, current_iteration = cls().update_global_Us(global_H, Hs, current_iteration)
+
+            # Update local G
+            for edge_idx in range(len(As)):
+                g, _ = cls().update_local_V(As[edge_idx], global_H, H_converged, current_iteration, max_iterations)
+                local_Gs[edge_idx] = g
+
+        return As, Hs, local_Gs
 
 
-def _get_shared_args(func, local_args):
-    # Extract shared args across functions
-    shared_args = func.__code__.co_varnames[0:5]
-    return {arg:local_args.get(arg) for arg in shared_args if arg != 'formated'}
+class AbsRandomizedSVD(AbsVerticalSubspaceIteration):
+    def __init__(self):
+        super().__init__()
+    
+    def decompose_global_Us(self, Us):
+        raise NotImplementedError
+    
+    def compute_local_covariance(self, A, U):
+        raise NotImplementedError
+    
+    def decompose_global_covariance(self, PtP, k2):
+        raise NotImplementedError
+    
+    def recontruct_local_V(self, P, Vp):
+        raise NotImplementedError
 
-def _get_func_specific_args(func, kwargs):
-    # Extract function-specific args
-    func_args = func.__code__.co_varnames
-    return {arg:kwargs.get(arg) for arg in func_args if arg in kwargs.keys()}
+class FederatedRandomizedSVD(FederatedVerticalSubspaceIteration):
+    def __init__(self):
+        super().__init__()
 
-def federated_standardization(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None):
-    if not formated:
-        shared_args = _get_shared_args(federated_standardization, locals())
-        As = array.genotype_matrix_input_formatter(**shared_args)
+    def decompose_global_Us(self, Us):
+        U = decompose_U_stack(Us)
+        return U
+    
+    def compute_local_covariance(self, A, U):
+        P = create_proxy_matrix(A, U)
+        PPt = covariance_from_proxy_matrix(P)
+        return P, PPt
+    
+    def decompose_global_covariance(self, PPt, k2):
+        PPt = aggregations.SumUp()(*PPt)
+        Vp = svd(PPt)[0][:,:k2]
+        return Vp
+    
+    def recontruct_local_V(self, P, Vp):
+        V = local_V_from_proxy_matrix(P, Vp)
+        return V
 
-    # global mean without NAs
-    local_sums, local_counts = [], []
-    for edge_idx in range(len(As)):
-        s, c = stats.nansum(As[edge_idx])
-        local_sums.append(s)
-        local_counts.append(c)
-    GLOBAL_MEAN = stats.aggregate_sums(local_sums, local_counts)
+    @classmethod
+    def standalone(cls, As, Hs, local_Gs, k2=20):
+        # Get the projection matrix
+        global_H = cls().decompose_global_Us(Hs)
 
-    # global mean from imputed data
-    local_sums, local_counts = [], []
-    for edge_idx in range(len(As)):
-        a, s, c = stats.impute_and_local_mean(As[edge_idx], GLOBAL_MEAN)
-        local_sums.append(s)
-        local_counts.append(c)
-        As[edge_idx] = a
-    GLOBAL_MEAN = stats.aggregate_sums(local_sums, local_counts)
+        # Form proxy data matrices to get proxy covariance matrices
+        Ps, covs = [], []
+        for edge_idx in range(len(As)):
+            p, ppt = cls().compute_local_covariance(As[edge_idx], global_H)
+            Ps.append(p)
+            covs.append(ppt)
+        global_H = cls().decompose_global_covariance(covs, k2)
 
-    # global variance
-    local_ssqs, local_counts = [], []
-    for edge_idx in range(len(As)):
-        a, ssq = stats.local_ssq(As[edge_idx], GLOBAL_MEAN)
-        local_ssqs.append(ssq)
-        local_counts.append(a.shape[0])
-        As[edge_idx] = a
-    GLOBAL_VAR, DELETE = stats.aggregate_ssq(local_ssqs, local_counts)
-
-    # standardize
-    std_As = []
-    for edge_idx in range(len(As)):
-        std_a = stats.standardize(As[edge_idx], GLOBAL_VAR, DELETE)
-        std_As.append(std_a)
-
-    return std_As
-
-
-def federated_vertical_subspace_iteration(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None,
-                                          transposed=False, k1=20, epsilon=1e-9, max_iterations=20):
-    if not formated or not transposed:
-        shared_args = _get_shared_args(federated_vertical_subspace_iteration, locals())
-        As = array.genotype_matrix_input_formatter(transpose=True, **shared_args)
-
-    # edge init
-    local_Gs = []
-    for edge_idx in range(len(As)):
-        g = randn(As[edge_idx].shape[1], k1)
-        g, r = jsp.linalg.qr(g, mode='economic')
-        local_Gs.append(g)
-
-    # aggregator init
-    prev_H = init_H(As[0].shape[0], k1)
-    current_iteration = 1
-    H_converged = False
-    Hs = []
-
-    # Vertical subspace iterations
-    while not H_converged and current_iteration < max_iterations:
-        # Update global H
+        # Update G matrix and prepare for the orthonormalization
         hs = []
         for edge_idx in range(len(As)):
-            h = update_local_H(As[edge_idx], local_Gs[edge_idx])
-            hs.append(h)
-        GLOBAL_H = update_global_H(hs)
-
-        # Check convergence & save global H
-        H_converged, _ = check_eigenvector_convergence(GLOBAL_H, prev_H, epsilon)
-        prev_H, Hs, current_iteration = iteration_update(GLOBAL_H, Hs, current_iteration, max_iterations)
-
-        # Update local G
-        for edge_idx in range(len(As)):
-            g = update_local_G(As[edge_idx], GLOBAL_H)
+            g = cls().recontruct_local_V(Ps[edge_idx], global_H)
+            h = cls().update_local_U(As[edge_idx], g)
             local_Gs[edge_idx] = g
+            hs.append(h)
+        global_H = cls().update_global_U(hs)
 
-    return As, Hs, local_Gs
+        return global_H, local_Gs
 
+class FederatedSVD(FederatedStandardization, FederatedRandomizedSVD, FederatedGramSchmidt):
+    def __init__(self):
+        FederatedStandardization.__init__()
+        FederatedRandomizedSVD.__init__()
+        FederatedGramSchmidt.__init__()
+    
+    @classmethod
+    def standalone(cls, As, k1=20, k2=20, epsilon=1e-9, max_iterations=20):
+        # Standardization
+        std_As = FederatedStandardization.standalone(As)
 
-def federated_randomized_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None,
-                             transposed=False, Hs=None, local_Gs=None, k2=20, **kwargs):
-    shared_args = _get_shared_args(federated_randomized_svd, locals())
+        # Vertical subspace iterations
+        Ast, Hs, local_Gs = FederatedVerticalSubspaceIteration.standalone(std_As, k1, epsilon, max_iterations)
 
-    # If Hs or local_Gs is missing, generate it.
-    # If Hs exists, check whether As is formated.
-    if (Hs or local_Gs) is None:
-        kwargs.update(shared_args)
-        As, Hs, local_Gs = federated_vertical_subspace_iteration(**kwargs)
-    elif not formated or not transposed:
-        As = array.genotype_matrix_input_formatter(transpose=True, **shared_args)
+        # Randomized SVD
+        global_H, local_Gs = FederatedRandomizedSVD.standalone(Ast, Hs, local_Gs, k2)
 
-    # Get the projection matrix
-    GLOBAL_H = decompose_H_stack(Hs)
+        # Gram-Schmidt Orthonormalization
+        local_Gs = FederatedGramSchmidt.standalone(local_Gs)
 
-    # Form proxy data matrices to get proxy covariance matrices
-    Ps, COVs = [], []
-    for edge_idx in range(len(As)):
-        p, cov = local_cov_matrix(As[edge_idx], GLOBAL_H)
-        Ps.append(p)
-        COVs.append(cov)
-    GLOBAL_U = decompose_cov_matrices(COVs, k2)
-
-    # Update G matrix and prepare for the orthonormalization
-    for edge_idx in range(len(As)):
-        g = local_G_from_proxy_matrix(Ps[edge_idx], GLOBAL_U)
-        local_Gs[edge_idx] = g
-
-    return GLOBAL_H, local_Gs
-
-
-def final_H_update(As, local_Gs):
-    hs = []
-    for edge_idx in range(len(As)):
-        h = update_local_H(As[edge_idx], local_Gs[edge_idx])
-        hs.append(h)
-    GLOBAL_H = update_global_H(hs)
-    return GLOBAL_H
-
-
-def federated_svd(As, formated=False, edge_axis=None, sample_axis=None, snp_axis=None, **kwargs):
-    if not formated:
-        shared_args = _get_shared_args(federated_svd, locals())
-        As = array.genotype_matrix_input_formatter(**shared_args)
-    shared_args = {'As':As, 'formated':True, 'edge_axis':0, 'sample_axis':1, 'snp_axis':2}
-
-    # Standardization
-    std_As = federated_standardization(**shared_args)
-    std_As = array.genotype_matrix_input_formatter(std_As, 0, 1, 2, transpose=True)
-    shared_args.update({'As':std_As, 'transposed':True})
-
-    # Vertical subspace iterations
-    vsi_kwargs = {**shared_args, **_get_func_specific_args(federated_vertical_subspace_iteration, kwargs)}
-    As, Hs, local_Gs = federated_vertical_subspace_iteration(**vsi_kwargs)
-    shared_args.update({'As':As})
-    kwargs.update({'Hs':Hs, 'local_Gs':local_Gs})
-
-    # Randomized SVD
-    randomized_kwargs = {**shared_args, **_get_func_specific_args(federated_randomized_svd, kwargs)}
-    GLOBAL_H, local_Gs = federated_randomized_svd(**randomized_kwargs)
-    kwargs.update({'GLOBAL_H':GLOBAL_H, 'MTXs':local_Gs})
-
-    # Gram-Schmidt Orthonormalization
-    ortho_kwargs = {**_get_func_specific_args(project.federated_orthonormalization, kwargs)}
-    local_Gs = project.federated_orthonormalization(**ortho_kwargs)
-
-    # Final global H update
-    GLOBAL_H = final_H_update(As, local_Gs)
-
-    return local_Gs, GLOBAL_H
+        return local_Gs, global_H
 
 
 @jit
