@@ -1,70 +1,12 @@
+import abc
+
 from jax import numpy as jnp
 from jax import scipy as jsp
-import logging
 
-from . import stats, linalg
-
-# Aggregator
-
-## gram_schmidt
-
-def init_gram_schmidt(norms):
-    """First step of the orthonormalization process 
-
-    Calculate the norm of the first eigenvector
-    original federated_gram_schmidt_init_step
-
-    Args:
-        norms (list of np.floating) : partial norms collected from edges
-
-    Returns:
-        (list of np.floating) : real norm of the first eigenvector
-    """
-    return [jnp.sum(jnp.asarray(norms))]
-
-def aggregate_residuals(residuals):
-    """Calculate the real residuals
-
-    When orthogonalizing ith eigenvector, there are i-1 values in the residuals.
-    original compute_residuals_step
-
-    Args:
-        residuals (the list of list of np.floating) : partial residuals collected from edges, the size of each vector depends on rank of eigenvector.
-    
-    Returns:
-        (np.ndarray[(1,), np.floating]) : real residuals used for projecting ith eigenvector with shape (i-1,).
-    """
-    return jnp.sum(jnp.asarray(residuals), axis=0)
-
-def aggregate_norms(norms):
-    """Calculate the real norm of ith eigenvector
-
-    After computing residuals for get the orthogonal vector, calculate the norm of ith eigenvector used for normalization.
-    original norm_aggregation_step
-
-    Args:
-        norms (list of np.floating) : partial norms of ith eigenvector collected from edges.
-    
-    Returns:
-        (np.floating) : real norm of ith eigenvector 
-    """
-    return jnp.sum(jnp.asarray(norms))
-
-def update_H(h_matrices):
-    """
-    original final_H_update_step
-    """
-    H = jnp.sum(jnp.asarray(h_matrices), axis=0)
-    # H shape: (n_SNPs, k)
-    H, R = jsp.linalg.qr(H, mode='economic')
-    return H
+from . import stats, linalg, aggregations
 
 
-# client
-
-## gram_schmidt
-
-def compute_residuals_step(G, Ortho, eigen_idx, norms):
+def compute_residuals(M, orthogonalized, eigen_idx, norms):
     """Calculate the local residuals
 
     When orthogonalizing ith eigenvector, there are i-1 values in the residuals.
@@ -81,91 +23,115 @@ def compute_residuals_step(G, Ortho, eigen_idx, norms):
     """
     residuals = []
     for res_idx in range(eigen_idx):
-        u = Ortho[res_idx]
-        v = G[:,eigen_idx]
+        u = orthogonalized[res_idx]
+        v = M[:,eigen_idx]
         r = jnp.vdot(u,v)/norms[res_idx]
         residuals.append(r)
 
     return residuals
 
-def orthogonalize_step(G, Ortho, eigen_idx, residuals):
-    """Orthogonalize
+def update_ortho_vectors(ortho_v, orthogonalized):
+    orthogonalized.append(ortho_v)
 
-    Orthogonalize ith eigenvector after collecting i-1 real residuals.
+def compute_norm(ortho_v):
+    return jnp.vdot(ortho_v, ortho_v)
 
-    Args:
-        G (np.ndarray[(1,1), np.floating]) : The G matrix with shape (n, k2), where n and k2 represent the number of samples and the latent dimensions decided in gwasprs.linalg.decompose_cov_matrices step.
-        Ortho (list of np.ndarray[(1,), np.floating]) : the list stores i-1 orthogonalized vectors (n,) of G matrix.
-        eigen_idx (int) : the index represents ith eigenvector, e.g. 2nd eigenvector: eigen_idx=1.
-        residuals (np.ndarray[(1,), np.floating]) : real residuals used for orthogonalization with shape (i-1,).
+class AbsGramSchmidt(abc.ABC):
+    def __init__(self):
+        pass
+
+    def local_first_norm(self, M):
+        raise NotImplementedError
     
-    Returns:
-        (np.floating) : the partial norm of ith eigenvector.
-    """
-    u = linalg.orthogonal_project(G[:,eigen_idx], Ortho, residuals)
-    Ortho.append(u)
-    return jnp.vdot(u,u)
-
-def normalize_step(norms, Ortho):
-    """Normalization
-
-    Make the norms of eigenvectors = 1
-
-    Args:
-        norms (list of np.floating) : i norms
-        Ortho (list of np.ndarray[(1,), np.floating]) : i orthogonalized eigenvectors
+    def global_first_norm(self, partial_norm): 
+        raise NotImplementedError
     
-    Returns:
-        (np.ndarray[(1,1), np.floating]) : orthonormalized G matrix with shape (n, k2), where n and k2 represent the number of samples and the latent dimensions decided in gwasprs.linalg.decompose_cov_matrices step.
-    """
-    G = stats.normalize(norms, Ortho)
-    return G
-
-def federated_orthonormalization(MTXs):
-    """Federated Orthonormalization
-
-    the MTXs are better close to orthogonal, 
-    otherwise, the result will probably be poor at the last eigenvectors.
-    (has been tested using randomly generated gaussian)
-
-    Args:
-        MTXs (list of np.ndarray[(1,1), np.floating]) : matrices to be orthonormalized
+    def local_residuals(self, M, ortho_v, eigen_idx, norms):
+        raise NotImplementedError
     
-    Returns:
-        (list of np.ndarray[(1,1), np.floating]) : orthonormalized MTXs
-    """
+    def global_residuals(self, residuals):
+        raise NotImplementedError
+    
+    def local_nth_norm(self, M, ortho_v, eigen_idx, residuals):
+        raise NotImplementedError
+    
+    def global_nth_norm(self, global_norms, partial_norm, eigen_idx, k2):
+        raise NotImplementedError
+    
+    def local_normalization(self, global_norms, ortho_v):
+        raise NotImplementedError
+    
+class FederatedGramSchmidt(AbsGramSchmidt):
+    def __init__(self):
+        super().__init__()
 
-    # First eigenvector
-    local_mtx, norms, orthos = [], [], []
-    for edge_idx in range(len(MTXs)):
-        norm, ortho = linalg.init_orthonormalization(MTXs[edge_idx])
-        local_mtx.append(MTXs[edge_idx])
-        norms.append(norm)
-        orthos.append(ortho)
-    NORMS = init_gram_schmidt(norms)
-
-    # Rest
-    for EIGEN_IDX in range(1, MTXs[0].shape[1]):
-        # Calculate residuals
-        residuals = []
+    def local_first_norm(self, M):
+        partial_norm, orthogonalized = linalg.init_gram_schmidt(M)
+        return partial_norm, orthogonalized
+    
+    def global_first_norm(self, partial_norm):
+        global_norms = [aggregations.SumUp()(*partial_norm)]
+        eigen_idx = 1
+        return global_norms, eigen_idx
+    
+    def local_residuals(self, M, orthogonalized, eigen_idx, norms):
+        residuals = compute_residuals(M, orthogonalized, eigen_idx, norms)
+        return residuals
+    
+    def global_residuals(self, residuals):
+        residuals = aggregations.SumUp()(*residuals)
+        return residuals
+    
+    def local_nth_norm(self, M, orthogonalized, eigen_idx, residuals):
+        ortho_v = linalg.orthogonalize(M[:,eigen_idx], orthogonalized, residuals)
+        update_ortho_vectors(ortho_v, orthogonalized)
+        partial_norm = compute_norm(ortho_v)
+        return partial_norm
+    
+    def global_nth_norm(self, global_norms, partial_norm, eigen_idx, k2):
+        norm = aggregations.SumUp()(*partial_norm)
+        global_norms.append(norm)
+        eigen_idx += 1
+        if eigen_idx < k2-1:
+            jump_to = 'local_residuals'
+        else:
+            jump_to = 'next'
+        return global_norms, eigen_idx, jump_to
+    
+    def local_normalization(self, global_norms, orthogonalized):
+        M = stats.normalize(global_norms, orthogonalized)
+        return M
+    
+    @classmethod
+    def standalone(cls, MTXs):
+        # First eigenvector
+        partial_norms, orthos = [], []
         for edge_idx in range(len(MTXs)):
-            res = compute_residuals_step(MTXs[edge_idx], orthos[edge_idx], EIGEN_IDX, NORMS)
-            residuals.append(res)
-        RESIDUALS = aggregate_residuals(residuals)
+            norm, ortho = cls().local_first_norm(MTXs[edge_idx])
+            partial_norms.append(norm)
+            orthos.append(ortho)
+        global_norms, _ = cls().global_first_norm(partial_norms)
 
-        # Calculate norms
-        norms = []
+        # Rest
+        for eigen_idx in range(1, MTXs[0].shape[1]):
+            # Calculate residuals
+            residuals = []
+            for edge_idx in range(len(MTXs)):
+                res = cls().local_residuals(MTXs[edge_idx], orthos[edge_idx], eigen_idx, global_norms)
+                residuals.append(res)
+            residuals = cls().global_residuals(residuals)
+
+            # Calculate norms
+            partial_norms = []
+            for edge_idx in range(len(MTXs)):
+                norm = cls().local_nth_norm(MTXs[edge_idx], orthos[edge_idx], eigen_idx, residuals)
+                partial_norms.append(norm)
+            global_norms, _, _ = cls().global_nth_norm(global_norms, partial_norms, eigen_idx, MTXs[0].shape[1])
+        
+        # Normalize the length to 1
+        orthonormal = []
         for edge_idx in range(len(MTXs)):
-            norm = orthogonalize_step(MTXs[edge_idx], orthos[edge_idx], EIGEN_IDX, RESIDUALS)
-            norms.append(norm)
-        NORMS.append(aggregate_norms(norms))
-    
-    # Normalize the length to 1
-    ORTHONORMAL_MTXs = []
-    for edge_idx in range(len(MTXs)):
-        orthonormal_mtx = normalize_step(NORMS, orthos[edge_idx])
-        ORTHONORMAL_MTXs.append(orthonormal_mtx)
+            mtx = cls().local_normalization(global_norms, orthos[edge_idx])
+            orthonormal.append(mtx)
 
-    return ORTHONORMAL_MTXs
-    
-
+        return orthonormal

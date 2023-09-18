@@ -6,8 +6,11 @@ from jax import scipy as jsp
 from . import linalg, utils
 
 
+def make_mean_zero(A, mean):
+    # Make the SNP mean = 0
+    return A - mean
 
-def sum_of_square(A, mean):
+def sum_of_square(A):
     """Sum of square
 
     Make column-wise mean of A equal to 0 and calculate the column-wise sum of squares.
@@ -21,9 +24,7 @@ def sum_of_square(A, mean):
         (np.ndarray[(1, 1), np.floating]) : modified A matrix
         (np.ndarray[(1,), np.floating]) : sum of square vector
     """
-    # Make the SNP mean = 0
-    A = A - mean
-    return A, jnp.sum(jnp.square(A), axis=0)
+    return jnp.sum(jnp.square(A), axis=0)
 
 @jit
 def normalize(norms, ortho):
@@ -113,93 +114,15 @@ def nansum(A):
     snp_sum, sample_count = _vectorize(linalg.nansum, 1, 0)(A)
     return snp_sum, sample_count
 
-
-def impute_and_local_mean(A, snp_mean):
-    """Mean of imuted data
-
-    Re-calculate mean of imputed data
-    original genotype_scaling_mean_step
-
-    Args:
-        A (np.ndarray[(1, 1), np.floating]) : Genotype matrix with shape (samples, SNPs)
-        snp_mean (np.ndarray[(1,), np.floating]) : mean of SNP as a vector
-
-    Returns:
-        (np.ndarray[(1, 1), np.floating]) : Imputed genotype matrix
-        (np.ndarray[(1,), np.floating]) : sum of SNP as a vector
-        (int) : sample count
-    """
-    # replace nan with means
+def impute_with_mean(A, mean):
     na_indices = jnp.where(jnp.isnan(A))
-    A = A.at[na_indices].set(jnp.take(snp_mean, na_indices[1]))
+    A = A.at[na_indices].set(jnp.take(mean, na_indices[1]))
+    return A
 
-    local_sum = _vectorize(jnp.sum, 1, 0)(A)
-    local_count = A.shape[0]
-    return A, local_sum, local_count
-
-
-def aggregate_sums(local_sums, local_counts):
-    """Aggregate local sums
-
-    Collect local sums and sample counts and calculate the global mean
-    original genotype_scaling_mean_step
-
-    Args:
-        local_sums (list of np.ndarray[(1,), np.floating]) : sum of SNP as a vector
-        local_counts (list of integers) : sample count
-    Return:
-        (np.ndarray[(1,), np.floating]) : global mean of SNP
-    """
-    global_count = jnp.array(local_counts).sum(axis=0)
-    global_mean = jnp.array(local_sums).sum(axis=0) / global_count
-
-    return global_mean
-
-
-def local_ssq(A, global_mean):
-    """Calculate local sum of square
-
-    Make column-wise mean of A equal to 0 and calculate the column-wise sum of squares.
-    original genotype_scaling_var_step
-
-    Args:
-        A (np.ndarray[(1, 1), np.floating]) : Imputed genotype matrix
-        global_mean (np.ndarray[(1,), np.floating]) : global mean of SNP
-
-    Returns:
-        (np.ndarray[(1, 1), np.floating]) : mean-shift genotype matrix
-        (np.ndarray[(1,), np.floating]) : sum of square
-    """
-    A, ssq = _vectorize(sum_of_square, (1,0), (1,0))(
-        A,
-        jnp.expand_dims(global_mean, -1)
-    )
-
-    return A, ssq
-
-
-def aggregate_ssq(local_ssqs, local_counts):
-    """Aggregate sums of square
-
-    Collect local sums of square and delete SNPs with variance=0
-    original genotype_scaling_var_step
-
-    Args:
-        local_ssqs (list of np.ndarray[(1,), np.floating]) : sum of square as a vector
-        local_counts (list of integers) : sample counts
-
-    Return:
-        (np.ndarray[(1,), np.floating]) : global variance of SNP
-        (np.ndarray[(1,), np.floating]) : boolean vector for whose variance = 0
-    """
-    global_count = jnp.array(local_counts).sum(axis=0)
-    local_ssqs = jnp.array(local_ssqs)
-    global_var = jnp.sum(local_ssqs, axis=0) / (global_count - 1)
-
-    deleted = jnp.where(global_var == 0)[0]
-    global_var = jnp.delete(global_var, deleted)
-
-    return global_var, deleted
+def sum_and_count(A):
+    col_sum = _vectorize(jnp.sum, 1, 0)(A)
+    count = A.shape[0]
+    return col_sum, count
 
 
 def standardize(A, global_var, deleted):
