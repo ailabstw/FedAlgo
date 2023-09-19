@@ -23,7 +23,7 @@ from .qc import (
     cal_qc_client, filter_ind, create_filtered_bed,
     filter_snp, cal_het_sd
 )
-from . import aggregations, project, reader
+from . import aggregations, project, reader, iterator
 # from . import prs
 
 
