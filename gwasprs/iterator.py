@@ -56,11 +56,17 @@ class FullIterator:
     def is_end(self):
         return False
 
+    def reset(self):
+        pass  # don't need to do anything
+
 
 class NDIterator(abc.ABC):
 
     def __init__(self) -> None:
         super().__init__()
+
+    def __iter__(self):
+        return self
 
 
 class SNPIterator(NDIterator):
@@ -83,7 +89,7 @@ class SNPIterator(NDIterator):
             self.iter.increase_step(step)
 
         slc = self.iter.get_step(step)
-        range = np.s_[slc, next(self.sample_iterator)]
+        range = np.s_[next(self.sample_iterator), slc]
         if isinstance(self.sample_iterator, FullIterator):
             self.iter.increase_step(step)
         return range
@@ -100,6 +106,10 @@ class SNPIterator(NDIterator):
 
     def is_end(self):
         return self.sample_iterator.is_end() and self.iter.is_end()
+
+    def reset(self):
+        self.iter.reset()
+        self.sample_iterator.reset()
 
 
 class SampleIterator(NDIterator):
@@ -122,7 +132,7 @@ class SampleIterator(NDIterator):
             self.iter.increase_step(step)
 
         slc = self.iter.get_step(step)
-        range = np.s_[next(self.snp_iterator), slc]
+        range = np.s_[slc, next(self.snp_iterator)]
         if isinstance(self.snp_iterator, FullIterator):
             self.iter.increase_step(step)
         return range
@@ -136,3 +146,10 @@ class SampleIterator(NDIterator):
             return self.increase_step(self.iter.step)
         else:
             raise StopIteration
+
+    def is_end(self):
+        return self.snp_iterator.is_end() and self.iter.is_end()
+
+    def reset(self):
+        self.iter.reset()
+        self.snp_iterator.reset()

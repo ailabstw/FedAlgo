@@ -1,4 +1,4 @@
-from .loader import (
+from .gwasdata import (
     GWASData, GwasDataLoader, GwasSnpIterator
 )
 from .array import (

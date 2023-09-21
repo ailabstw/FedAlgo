@@ -1,13 +1,13 @@
 from typing import List, Set
 import os
-import copy
 import logging
+from warnings import warn
 
 import numpy as np
 import pandas as pd
 
 from .reader import read_snp_list, read_ind_list, BedReader, FamReader, CovReader, BimReader, PhenotypeReader
-from .iterator import IndexIterator, SNPIterator, SampleIterator
+from .iterator import SNPIterator, SampleIterator
 
 
 AUTOSOME_LIST = ()
@@ -215,9 +215,21 @@ class GWASData:
             bim : With unique IDs and rsIDs
             genotype : If the A1 and A2 are switched, snp array = 2 - snp array
     """
-    def __init__(self, GT, fam, bim, cov):
-        self.__dict__.update(locals())
-        self.__dict__.update({f'dropped_{data}': pd.DataFrame() for data in ['fam', 'bim', 'cov']})
+    def __init__(self, genotype, phenotype, snp, covariate):
+        self.__genotype = genotype
+        self.__phenotype = phenotype
+        self.__snp = snp
+        self.__covariate = covariate
+        self.__dropped_phenotype = pd.DataFrame()
+        self.__dropped_snp = pd.DataFrame()
+        self.__dropped_covariate = pd.DataFrame()
+
+    @classmethod
+    def read(cls, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+        GT = BedReader(bfile_path).read()
+        bim = BimReader(bfile_path).read()
+        fam, cov = format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
+        return cls(GT, fam, bim, cov)
 
     def standard(self):
         self.subset()
@@ -238,96 +250,112 @@ class GWASData:
     def subset(self, sample_list=None, snp_list=None, order=False, list_is_idx=False):
         # Sample information
         if sample_list:
-            self.fam, sample_idx, dropped_fam = subset_samples(sample_list, self.fam, order, list_is_idx)
-            self.dropped_fam = update_dropped(self.dropped_fam, dropped_fam)
+            self.__phenotype, sample_idx, dropped_fam = subset_samples(sample_list, self.__phenotype, order, list_is_idx)
+            self.__dropped_phenotype = update_dropped(self.__dropped_phenotype, dropped_fam)
 
-            if self.cov is not None:
-                self.cov, _, dropped_cov = subset_samples(sample_list, self.cov, order, list_is_idx)
-                self.dropped_cov = update_dropped(self.dropped_cov, dropped_cov)
+            if self.__covariate is not None:
+                self.__covariate, _, dropped_cov = subset_samples(sample_list, self.__covariate, order, list_is_idx)
+                self.__dropped_covariate = update_dropped(self.__dropped_covariate, dropped_cov)
         else:
-            sample_idx = list(self.fam.index)
+            sample_idx = list(self.__phenotype.index)
 
         # SNP information
         if snp_list:
-            self.bim, snp_idx, dropped_bim = subset_snps(snp_list, self.bim, order, list_is_idx)
-            self.dropped_bim = update_dropped(self.dropped_bim, dropped_bim)
+            self.__snp, snp_idx, dropped_bim = subset_snps(snp_list, self.__snp, order, list_is_idx)
+            self.__dropped_snp = update_dropped(self.__dropped_snp, dropped_bim)
         else:
-            snp_idx = list(self.bim.index)
+            snp_idx = list(self.__snp.index)
 
         # Genotype information
-        self.GT = self.GT[np.ix_(sample_idx, snp_idx)]
+        self.__genotype = self.__genotype[np.ix_(sample_idx, snp_idx)]
 
     def impute_covariates(self):
-        self.cov = impute_cov(self.cov)
+        self.__covariate = impute_cov(self.__covariate)
 
     def drop_missing_samples(self):
         # Re-subset the samples without any missing values
-        sample_idx = index_non_missing_samples(self.fam, self.cov)
+        sample_idx = index_non_missing_samples(self.__phenotype, self.__covariate)
         self.subset(sample_list=sample_idx, list_is_idx=True)
 
     def add_unique_snp_id(self):
-        unique_id, sorted_snp_idx = create_unique_snp_id(self.bim, to_byte=False, to_dict=False)
-        self.bim['rsID'] = self.bim['ID']
-        self.bim['ID'] = unique_id
-        self.GT = redirect_genotype(self.GT, sorted_snp_idx)
+        unique_id, sorted_snp_idx = create_unique_snp_id(self.__snp, to_byte=False, to_dict=False)
+        self.__snp['rsID'] = self.__snp['ID']
+        self.__snp['ID'] = unique_id
+        self.__genotype = redirect_genotype(self.__genotype, sorted_snp_idx)
 
     @property
     def phenotype(self):
-        return self.fam
+        return self.__phenotype
 
     @property
     def sample_id(self):
-        return list(zip(self.fam.FID, self.fam.IID))
+        return list(zip(self.__phenotype.FID, self.__phenotype.IID))
 
     @property
     def covariate(self):
-        return self.cov
+        return self.__covariate
+
+    @property
+    def snp(self):
+        return self.__snp
 
     @property
     def snp_id(self):
-        return list(self.bim.ID)
+        return list(self.__snp.ID)
 
     @property
     def autosome_snp_id(self):
-        return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].ID)
+        return list(self.__snp[self.__snp.CHR.isin(AUTOSOME_LIST)].ID)
 
     @property
     def rsID(self):
-        return list(self.bim.rsID)
+        return list(self.__snp.rsID)
 
     @property
     def autosome_rsID(self):
-        return list(self.bim[self.bim.CHR.isin(AUTOSOME_LIST)].rsID)
+        return list(self.__snp[self.__snp.CHR.isin(AUTOSOME_LIST)].rsID)
 
     @property
     def allele(self):
-        return list(zip(self.bim.A1, self.bim.A2))
+        return list(zip(self.__snp.A1, self.__snp.A2))
 
     @property
     def genotype(self):
-        return self.GT
+        return self.__genotype
 
     @property
     def snp_table(self):
-        assert 'rsID' in self.bim.columns
+        assert 'rsID' in self.__snp.columns
         return create_snp_table(self.snp_id, self.rsID)
 
     @property
     def autosome_snp_table(self):
-        assert 'rsID' in self.bim.columns
+        assert 'rsID' in self.__snp.columns
         return create_snp_table(self.autosome_snp_id, self.autosome_rsID)
 
     @property
     def dropped_phenotype(self):
-        return self.dropped_fam
+        return self.__dropped_phenotype
 
     @property
     def dropped_covariate(self):
-        return self.dropped_cov
+        return self.__dropped_covariate
 
     @property
     def dropped_snp(self):
-        return self.dropped_bim
+        return self.__dropped_snp
+
+    def __eq__(self, other):
+        if self.covariate is None and other.covariate is None:
+            return np.array_equal(self.genotype, other.genotype, equal_nan=True) and \
+                self.phenotype.equals(other.phenotype) and \
+                self.snp.equals(other.snp)
+        else:
+            return np.array_equal(self.genotype, other.genotype, equal_nan=True) and \
+                self.phenotype.equals(other.phenotype) and \
+                self.snp.equals(other.snp) and \
+                self.covariate.equals(other.covariate)
+
 
 
 def format_cov(cov: pd.DataFrame, fam: pd.DataFrame):
@@ -353,7 +381,7 @@ def format_sample_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_nam
     """
     fam = FamReader(bfile_path).read()
     if pheno_path is not None:
-        pheno = PhenotypeReader(pheno_path, pheno_name)
+        pheno = PhenotypeReader(pheno_path, pheno_name).read()
         fam = format_fam(fam, pheno)
 
     if cov_path:
@@ -365,6 +393,7 @@ def format_sample_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_nam
 
 
 def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
+    warn('read_gwasdata is deprecated.', DeprecationWarning, stacklevel=2)
     GT = BedReader(bfile_path).read()
     bim = BimReader(bfile_path).read()
     fam, cov = format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
@@ -374,11 +403,12 @@ def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1
 
 class GWASDataIterator:
 
-    def __init__(self, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', style="sample-snp", sample_step = 1, snp_step = 1):
+    def __init__(self, bfile_path, cov_path=None, style="sample-snp", sample_step = 1, snp_step = 1):
         self.bedreader = BedReader(bfile_path)
         self.bimreader = BimReader(bfile_path)
-        self.famreader = FamReader(bfile_path, cov_path, pheno_path, pheno_name)
-        self.covreader = CovReader(bfile_path, cov_path, pheno_path, pheno_name)
+        self.famreader = FamReader(bfile_path)
+        if cov_path is not None:
+            self.covreader = CovReader(cov_path)
 
         if style == "sample":
             self.iterator = SampleIterator(self.bedreader.n_sample, sample_step)
@@ -392,40 +422,26 @@ class GWASDataIterator:
             raise Exception(f"{style} style is not supported.")
 
     def reset(self):
-        if self.iterator.category == 'sample-snp' and self.iterator.snp_iterator.n_features == self.prev_idx[1][-1]+1:
-            self.bim.reset()
-        elif self.iterator.category == 'snp-sample' and self.iterator.sample_iterator.n_features == self.prev_idx[0][-1]+1:
-            self.fam.reset()
-            self.cov.reset()
+        self.iterator.reset()
 
-    def increase_step(self, step):
-        snp_slc, sample_slc = self.iterator.increase_step(step)
-        chunk_bed = self.bedreader[sample_slc, snp_slc]
-        chunk_fam = self.fam[sample_slc, :]
-        chunk_cov = self.cov[sample_slc, :]
-        chunk_bim = self.bim[snp_slc, :]
+    def get_data(self, sample_slc, snp_slc):
+        chunk_bed = self.bedreader.read_range((sample_slc, snp_slc))
+        chunk_fam = self.famreader.read_range(sample_slc)
+        chunk_cov = self.covreader.read_range(sample_slc) if hasattr(self, "covreader") else None
+        chunk_bim = self.bimreader.read_range(snp_slc)
         return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        return GWASData(chunk_bed, chunk_fam, chunk_bim, chunk_cov)
-        # return self.get_chunk(self.iterator.chunk_size)
+        if not self.is_end():
+            return self.get_data(*next(self.iterator))
+        else:
+            raise StopIteration
 
-
-def assert_GWASData_is_equal(GWASData1, GWASData2):
-    GWASData1_properties = vars(GWASData1)
-    GWASData2_properties = vars(GWASData2)
-    for key in GWASData1_properties.keys():
-        v1 = GWASData1_properties[key]
-        v2 = GWASData2_properties[key]
-        if type(v1) is np.ndarray:
-            np.testing.assert_allclose(v1, v2, equal_nan=True)
-        elif type(v1) is pd.DataFrame:
-            v1.reset_index(drop=True, inplace=True)
-            v2.reset_index(drop=True, inplace=True)
-            pd.testing.assert_frame_equal(v1, v2, check_index_type=False)
+    def is_end(self):
+        return self.iterator.is_end()
 
 
 
