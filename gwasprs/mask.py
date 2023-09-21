@@ -6,6 +6,11 @@ def isnonnan(X: np.ndarray, axis=1):
     return jnp.sum(jnp.isnan(X), axis=axis) == 0
 
 
+def dropnan(X: np.ndarray, axis=1):
+    nonnan_idx = np.sum(np.isnan(X), axis=axis) == 0
+    return X[nonnan_idx]
+
+
 def get_mask(X: 'np.ndarray[(1, 1), np.floating]'):
     return jnp.expand_dims(isnonnan(X, axis=1), -1)
 

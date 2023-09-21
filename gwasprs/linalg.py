@@ -86,7 +86,7 @@ def gen_mvmul(y: np.ndarray):
 def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Batched vector-vector dot product
 
-    Perform x.T * y with batch on their last dimension.
+    Perform x.T * y with batch on their first dimension.
 
     Args:
         x (np.ndarray[(1, 1), np.floating]): Batched vector.
@@ -102,7 +102,7 @@ def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def batched_mvdot(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Batched matrix-vector dot product
 
-    Perform X.T * y with batch on their last dimension.
+    Perform X.T * y with batch on their first dimension.
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
@@ -117,7 +117,7 @@ def batched_mvdot(X: np.ndarray, y: np.ndarray) -> np.ndarray:
 def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Batched matrix-vector multiplication
 
-    Perform X * y with batch on their last dimension.
+    Perform X * y with batch on their first dimension.
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
@@ -132,7 +132,7 @@ def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
 def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """Batched matrix-matrix dot product
 
-    Perform X.T * Y with batch on their last dimension.
+    Perform X.T * Y with batch on their first dimension.
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
@@ -147,7 +147,7 @@ def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
 def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """Batched matrix multiplication
 
-    Perform X * Y with batch on their last dimension.
+    Perform X * Y with batch on their first dimension.
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
