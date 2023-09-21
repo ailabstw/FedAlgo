@@ -78,7 +78,7 @@ def batched_unnorm_covariance(X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.nd
     return linalg.batched_mvdot(X, y)
 
 def blocked_unnorm_autocovariance(X: 'np.ndarray[(1, 1), np.floating]') -> 'np.ndarray[(1, 1), np.floating]':
-    return X.T @ X
+    return (X.T @ X).toarray()
 
 def blocked_unnorm_covariance(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
     return X.T @ y
