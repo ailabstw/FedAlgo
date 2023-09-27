@@ -70,7 +70,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
 
     def setUp(self):
         self.bedreader = gwasprs.reader.BedReader(bfile_path)
-        self.bed = self.bedreader.read()
+        self.genotype = self.bedreader.read()
         self.n_SNP = self.bedreader.n_snp
         self.n_sample = self.bedreader.n_sample
         self.snp_default_step = 15
@@ -78,112 +78,106 @@ class GWASDataIteratorTestCase(unittest.TestCase):
         self.sample_step_list = [12, 10, 8, 20, 11] # 61
         self.snp_step_list = [23, 17, 2, 11, 14, 34] # 101
 
-        pheno = gwasprs.reader.PhenotypeReader(pheno_path, 'pheno').read()
-        fam = gwasprs.reader.FamReader(bfile_path).read()
-        self.fam = gwasprs.gwasdata.format_fam(fam, pheno)
-        cov = gwasprs.reader.CovReader(cov_path).read()
-        self.cov = gwasprs.gwasdata.format_cov(cov, self.fam)
-        self.bim = gwasprs.reader.BimReader(bfile_path).read()
+        self.phenotype = gwasprs.reader.FamReader(bfile_path).read()
+        self.cov = gwasprs.reader.CovReader(cov_path).read()
+        self.snp = gwasprs.reader.BimReader(bfile_path).read()
 
     def tearDown(self):
-        self.bed = None
-        self.fam = None
+        self.genotype = None
+        self.phenotype = None
         self.cov = None
-        self.bim = None
+        self.snp = None
 
-    def test_sample_iterator(self):
+    def test_iterate_sample(self):
         idx_iter = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step)
         dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, None,
-                                                    style="sample",
-                                                    sample_step=self.sample_default_step)
+                                                     style="sample",
+                                                     sample_step=self.sample_default_step)
 
-        for idx in idx_iter:
-            bed = self.bed[idx]
-            bim = self.bim
-            fam = self.fam.loc[idx[0]]
-            cov = self.cov.loc[idx[0]]
-            ans = gwasprs.gwasdata.GWASData(bed, fam, bim, cov)
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp
+            phenotype = self.phenotype.loc[idx[0]]
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
-            result = next(dataiter)
-
+            np.array_equal(ans.genotype, result.genotype, equal_nan=True)
+            pd.testing.assert_frame_equal(ans.snp, result.snp)
+            pd.testing.assert_frame_equal(ans.phenotype, result.phenotype)
             self.assertEqual(ans, result)
 
-    def test_snp_iterator(self):
+    def test_iterate_snp(self):
         idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step)
         dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, None,
-                                                    style="snp",
-                                                    snp_step=self.snp_default_step)
+                                                     style="snp",
+                                                     snp_step=self.snp_default_step)
 
-        for idx in idx_iter:
-            bed = self.bed[idx]
-            bim = self.bim.loc[idx[1]]
-            fam = self.fam
-            cov = self.cov
-            ans = gwasprs.gwasdata.GWASData(bed, fam, bim, cov)
+        # for idx, result in zip(idx_iter, dataiter):
+        #     genotype = self.genotype[idx]
+        #     snp = self.snp.loc[idx[1]]
+        #     phenotype = self.phenotype
+        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
-            result = next(dataiter)
+        #     np.array_equal(ans.genotype, result.genotype, equal_nan=True)
+        #     pd.testing.assert_frame_equal(ans.snp, result.snp)
+        #     pd.testing.assert_frame_equal(ans.phenotype, result.phenotype)
+        #     self.assertEqual(ans, result)
+
+    def test_iterate_sample_snp(self):
+        idx_iter = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step).snps(self.n_SNP, self.snp_default_step)
+        dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, None,
+                                                     style="sample-snp",
+                                                     snp_step=self.snp_default_step,
+                                                     sample_step=self.sample_default_step)
+
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp.loc[idx[1]]
+            phenotype = self.phenotype.loc[idx[0]]
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
             self.assertEqual(ans, result)
 
-    # def test_sample_snp_get_chunk(self):
-    #     iterator = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step).snps(self.n_SNP, self.snp_default_step)
-    #     GWASDataIterator = gwasprs.gwasdata.GWASDataIterator.SampleWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+    def test_iterate_snp_sample(self):
+        idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step).samples(self.n_sample, self.sample_default_step)
+        dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, None,
+                                                     style="snp-sample",
+                                                     snp_step=self.snp_default_step,
+                                                     sample_step=self.sample_default_step)
 
-    #     for idx in iterator:
-    #         bed = self.bed.read(index=idx)
-    #         bim = self.bim.loc[idx[1]]
-    #         fam = self.fam.loc[idx[0]]
-    #         cov = self.cov.loc[idx[0]]
-    #         ans = gwasprs.gwasdata.GWASData(bed, fam, bim, cov)
+        # for idx, result in zip(idx_iter, dataiter):
+        #     genotype = self.genotype[idx]
+        #     snp = self.snp.loc[idx[1]]
+        #     phenotype = self.phenotype.loc[idx[0]]
+        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
-    #         result = GWASDataIterator.get_chunk(len(idx[0]))
+        #     self.assertEqual(ans, result)
 
-    #         self.assertEqual(ans, result)
+    def test_iterate_sample_with_cov(self):
+        idx_iter = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step)
+        dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, cov_path,
+                                                     style="sample",
+                                                     sample_step=self.sample_default_step)
 
-    # def test_snp_sample_get_chunk(self):
-    #     iterator = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step).samples(self.n_sample, self.sample_default_step)
-    #     GWASDataIterator = gwasprs.gwasdata.GWASDataIterator.SNPWise(bfile_path, iterator, cov_path, pheno_path, 'pheno')
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp
+            phenotype = self.phenotype.loc[idx[0]]
+            cov = self.cov.loc[idx[0]]
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
 
-    #     for idx in iterator:
-    #         bed = self.bed.read(index=idx)
-    #         bim = self.bim.loc[idx[1]]
-    #         fam = self.fam.loc[idx[0]]
-    #         cov = self.cov.loc[idx[0]]
-    #         ans = gwasprs.gwasdata.GWASData(bed, fam, bim, cov)
+            self.assertEqual(ans, result)
 
-    #         result = GWASDataIterator.get_chunk(len(idx[1]))
+    def test_iterate_snp_with_cov(self):
+        idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step)
+        dataiter = gwasprs.gwasdata.GWASDataIterator(bfile_path, cov_path,
+                                                     style="snp",
+                                                     snp_step=self.snp_default_step)
 
-    #         self.assertEqual(ans, result)
+        # for idx, result in zip(idx_iter, dataiter):
+        #     genotype = self.genotype[idx]
+        #     snp = self.snp.loc[idx[1]]
+        #     phenotype = self.phenotype
+        #     cov = self.cov
+        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
 
-    # def test_sample_iterator_with_cov(self):
-    #     iterator = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step)
-    #     GWASDataIterator = gwasprs.gwasdata.GWASDataIterator(bfile_path, cov_path, pheno_path, 'pheno',
-    #                                                        style="sample",
-    #                                                        sample_step=self.sample_default_step,
-    #                                                        snp_step=self.snp_default_step)
-
-    #     pd.testing.assert_frame_equal(self.cov, result)
-
-    # def test_sample_snp_with_cov_get_chunk(self):
-    #     iterator = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_chunk_size).snps(self.n_SNP, self.snp_chunk_size)
-    #     cov_iterator = gwasprs.gwasdata.CovIterator(bfile_path, cov_path, pheno_path, 'pheno', iterator)
-    #     total_blocks = [cov_iterator.get_chunk(chunk_size) for chunk_size in self.sample_step_list]
-    #     result = pd.concat(total_blocks, axis=0)
-
-    #     pd.testing.assert_frame_equal(self.cov, result)
-
-    # def test_only_sample_with_cov_next(self):
-    #     iterator = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_chunk_size)
-    #     cov_iterator = gwasprs.gwasdata.CovIterator(bfile_path, cov_path, pheno_path, 'pheno', iterator)
-    #     total_blocks = [cov for cov in cov_iterator]
-    #     result = pd.concat(total_blocks, axis=0)
-
-    #     pd.testing.assert_frame_equal(self.cov, result)
-
-    # def test_sample_snp_with_cov_next(self):
-
-
-    #     ans = self.bed.read()
-
-    #     iterator = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step).samples(self.n_sample, self.sample_default_step)
-    #     pass
+        #     self.assertEqual(ans, result)
