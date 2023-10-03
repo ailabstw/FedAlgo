@@ -1,6 +1,7 @@
 import unittest
 import gwasprs
 import numpy as np
+from scipy.sparse import coo_array, csr_array
 import jax.numpy as jnp
 
 
@@ -20,6 +21,16 @@ class SumUpTestCase(unittest.TestCase):
         result = gwasprs.aggregations.SumUp()(self.A, self.B, self.C)
         ans = self.A + self.B + self.C
         np.testing.assert_array_almost_equal(ans, result)
+
+    def test_sum_of_coo_array(self):
+        result = gwasprs.aggregations.SumUp()(coo_array(self.A[0]), coo_array(self.B[0]), coo_array(self.C[0]))
+        ans = self.A[0] + self.B[0] + self.C[0]
+        np.testing.assert_array_almost_equal(ans, result.todense())
+
+    def test_sum_of_csr_array(self):
+        result = gwasprs.aggregations.SumUp()(csr_array(self.A[0]), csr_array(self.B[0]), csr_array(self.C[0]))
+        ans = self.A[0] + self.B[0] + self.C[0]
+        np.testing.assert_array_almost_equal(ans, result.todense())
 
     def test_sum_of_jax_arrays(self):
         result = gwasprs.aggregations.SumUp()(jnp.array(self.A), jnp.array(self.B), jnp.array(self.C))

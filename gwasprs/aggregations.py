@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse import issparse
 import jax
 from ordered_set import OrderedSet
 
@@ -12,14 +13,14 @@ class Aggregation:
 
         if x is None:
             return None
-        elif isinstance(x, list) and isinstance(x[0], (np.ndarray, np.generic, jax.Array)):
+        elif isinstance(x, list) and (isinstance(x[0], (np.ndarray, np.generic, jax.Array)) or issparse(x[0])):
             return self.aggregate_list_of_array(*xs)
         elif isinstance(x, int) or isinstance(x, float):
             return self.aggregate_scalars(*xs)
-        elif isinstance(x, (np.ndarray, np.generic, jax.Array)):
+        elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
             return self.aggregate_arrays(*xs)
         else:
-            raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray or list of np.ndarray")
+            raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray, scipy sparse array or list of np.ndarray")
 
 
 
