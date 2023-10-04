@@ -24,7 +24,7 @@ class LinearRegression(LinearModel):
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
     """
 
-    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.CholeskySolver()) -> None:
+    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.CholeskySolver(), include_bias=False) -> None:
         if beta is None:
             if XtX is None or Xty is None:
                 raise ValueError("Must provide XtX and Xty, since beta is not provided.")
@@ -35,6 +35,8 @@ class LinearRegression(LinearModel):
             self.__beta = algo(XtX, Xty)
         else:
             self.__beta = beta
+
+        self.__include_bias = include_bias
 
     @property
     def coef(self):
@@ -49,19 +51,19 @@ class LinearRegression(LinearModel):
         Returns:
             int: _description_
         """
-        k = self.__beta.shape[0]
+        k = self.__beta.shape[0] + self.__include_bias
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
         return linalg.mvmul(X, self.__beta)
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.CholeskySolver()):
+    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.CholeskySolver(), include_bias=False):
         if isinstance(algo, linalg.QRSolver):
             beta = algo(X, y)
         else:
             beta = algo(stats.unnorm_autocovariance(X), stats.unnorm_covariance(X, y))
-        return LinearRegression(beta = beta)
+        return LinearRegression(beta = beta, include_bias = include_bias)
 
     def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return y - self.predict(X)
