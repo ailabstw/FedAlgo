@@ -3,6 +3,7 @@ from abc import ABCMeta
 import numpy as np
 from jax import numpy as jnp
 from jax import pmap
+from scipy.sparse import issparse
 
 from . import linalg, stats, utils
 
@@ -55,7 +56,10 @@ class LinearRegression(LinearModel):
         return nobs - k
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        return linalg.mvmul(X, self.__beta)
+        if issparse(X):
+            return X @ self.__beta
+        else:
+            return linalg.mvmul(X, self.__beta)
 
     @classmethod
     def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.CholeskySolver(), include_bias=False):

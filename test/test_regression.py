@@ -3,6 +3,7 @@ import gwasprs
 import gwasprs.linalg as linalg
 import numpy as np
 from scipy.stats import norm
+from scipy.sparse import csr_array
 
 class LinearRegressionTestCase(unittest.TestCase):
 
@@ -23,6 +24,10 @@ class LinearRegressionTestCase(unittest.TestCase):
 
     def test_predict(self):
         result = self.model.predict(self.X)
+        np.testing.assert_array_almost_equal(np.dot(self.X, self.beta), result, decimal=5)
+
+    def test_sparse_predict(self):
+        result = self.model.predict(csr_array(self.X))
         np.testing.assert_array_almost_equal(np.dot(self.X, self.beta), result, decimal=5)
 
     def test_fit(self):
