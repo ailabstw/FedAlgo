@@ -169,6 +169,88 @@ class BatchedLinearRegression(LinearModel):
         return t_stat
 
 
+class BlockedLinearRegression(LinearModel):
+    """A class for blocked linear regression
+
+    Args:
+        beta ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
+        XtX ('np.ndarray[(1, 1), np.floating]', optional): _description_. Defaults to None.
+        Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
+    """
+
+    def __init__(self, beta = None, XtX = None, Xty = None, nmodels: int = 1, algo=linalg.CholeskySolver()) -> None:
+        if beta is None:
+            if XtX is None or Xty is None:
+                raise ValueError("Must provide XtX and Xty, since beta is not provided.")
+
+            if isinstance(algo, linalg.QRSolver):
+                raise ValueError("QRSolver is not supported in constructor.")
+
+            if XtX.shape[0] % nmodels != 0:
+                raise ValueError(f"Dimension of XtX ({XtX.shape[0]}) is not divisible by number of models ({nmodels}).")
+
+            self.__beta = algo(XtX, Xty)
+        else:
+            if beta.shape[0] % nmodels != 0:
+                raise ValueError(f"Dimension of beta ({beta.shape[0]}) is not divisible by number of models ({nmodels}).")
+
+            self.__beta = beta
+
+        self.__nmodels = nmodels
+
+    @property
+    def nmodels(self):
+        return self.__nmodels
+
+    @property
+    def coef(self):
+        return self.__beta
+
+    @property
+    def coef_dim(self):
+        return self.__beta.shape[0] // self.nmodels
+
+    def dof(self, nobs):
+        """Degrees of freedom
+
+        Args:
+            nobs (int, np.ndarray): Number of observations
+
+        Returns:
+            int: _description_
+        """
+        k = self.coef_dim
+        return nobs - k
+
+    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+        return X @ self.__beta
+
+    @classmethod
+    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nmodels: int = 1, algo=linalg.CholeskySolver()):
+        if isinstance(algo, linalg.QRSolver):
+            beta = algo(X, y)
+        else:
+            beta = algo((X.T @ X).toarray(), X.T @ y)
+        return BlockedLinearRegression(beta = beta, nmodels = nmodels)
+
+    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+        return y - self.predict(X)
+
+    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nobss):
+        res = self.residual(X, y)
+        block_starts = np.cumsum(np.insert(nobss, 0, [0.]))
+        sse = np.array([res[block_starts[i]:block_starts[i+1]].T @ res[block_starts[i]:block_starts[i+1]] for i in range(len(block_starts)-1)])
+        return sse
+
+    def t_stats(self, sse, XtX, dof):
+        XtXinv = np.linalg.inv(XtX)
+        sigma_squared = sse / dof
+        vars = sigma_squared * XtXinv
+        std = np.sqrt(vars.diagonal())
+        t_stat = self.coef / std
+        return t_stat
+
+
 class LogisticRegression(LinearModel):
     def __init__(self, beta = None) -> None:
         self.__beta = beta

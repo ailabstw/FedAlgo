@@ -3,7 +3,7 @@ import gwasprs
 import gwasprs.linalg as linalg
 import numpy as np
 from scipy.stats import norm
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, block_diag
 
 class LinearRegressionTestCase(unittest.TestCase):
 
@@ -192,6 +192,67 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
 
     def test_inv_hessian(self):
         linalg.batched_inv(self.model.hessian(self.X))
+
+
+class BlockedLinearRegressionTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.n = 111
+        self.dim = 3
+        self.nmodels = 3
+        self.X = block_diag([
+            np.random.rand(self.n-1, self.dim),
+            np.random.rand(self.n-10, self.dim),
+            np.random.rand(self.n-100, self.dim),
+        ])
+        self.beta = np.random.rand(self.nmodels * self.dim)
+        self.y = self.X @ self.beta + np.random.rand((self.n-1) + (self.n-10) + (self.n-100))
+        self.model = gwasprs.regression.BlockedLinearRegression(self.beta, nmodels=self.nmodels)
+        self.nobss = np.array([self.n-1, self.n-10, self.n-100])
+
+    def tearDown(self):
+        self.n = None
+        self.dim = None
+        self.model = None
+        self.X = None
+        self.y = None
+
+    def test_predict(self):
+        result = self.model.predict(self.X)
+        np.testing.assert_array_almost_equal(self.X @ self.beta, result, decimal=5)
+
+    def test_nmodels(self):
+        self.assertEqual(self.nmodels, self.model.nmodels)
+
+    def test_fit(self):
+        model = gwasprs.regression.BlockedLinearRegression.fit(self.X, self.y, nmodels=self.nmodels)
+        self.assertEqual(gwasprs.regression.BlockedLinearRegression, type(model))
+
+    def test_residual(self):
+        result = self.model.residual(self.X, self.y)
+        np.testing.assert_array_almost_equal(self.y - self.model.predict(self.X), result, decimal=5)
+
+    def test_sse(self):
+        result = self.model.sse(self.X, self.y, self.nobss)
+        resd = self.model.residual(self.X, self.y)
+        ans = np.array([
+            resd[0:self.n-1].T @ resd[0:self.n-1],
+            resd[self.n-1:2*self.n-11].T @ resd[self.n-1:2*self.n-11],
+            resd[2*self.n-11:3*self.n-111].T @ resd[2*self.n-11:3*self.n-111],
+        ])
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
+
+    def test_dof(self):
+        result = self.model.dof(self.nobss)
+        ans = self.nobss - self.model.coef_dim
+        np.testing.assert_array_equal(ans, result)
+
+    def test_t_stats(self):
+        sse = np.repeat(self.model.sse(self.X, self.y, self.nobss), [self.nmodels,])
+        XtX = (self.X.T @ self.X).toarray()
+        dof = np.repeat(self.model.dof(self.nobss), [self.nmodels,])
+        result = self.model.t_stats(sse, XtX, dof)
+        self.assertEqual((self.nmodels * self.dim, ), result.shape)
 
 
 class UtilsTestCase(unittest.TestCase):
