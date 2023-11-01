@@ -242,10 +242,19 @@ class BlockedLinearRegression(LinearModel):
         sse = np.array([res[block_starts[i]:block_starts[i+1]].T @ res[block_starts[i]:block_starts[i+1]] for i in range(len(block_starts)-1)])
         return sse
 
+    def mse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nobss):
+        """Mean Square Error, which is sum of square error (sse) divided by degree of freedom (dof).
+
+        Args:
+            X (np.ndarray): _description_
+            y (np.ndarray): _description_
+            nobss (_type_): list of numbers of observations.
+        """
+        return self.sse(X, y, nobss) / self.dof(nobss)
+
     def t_stats(self, sse, XtX, dof):
-        XtXinv = linalg.inv(XtX)
-        sigma_squared = sse / dof
-        vars = sigma_squared * XtXinv.diagonal()
+        mse = sse / dof
+        vars = mse * linalg.inv(XtX).diagonal()
         std = np.sqrt(vars)
         t_stat = self.coef / std
         return t_stat
