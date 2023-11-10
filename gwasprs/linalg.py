@@ -1,5 +1,4 @@
 import abc
-from typing import Any
 
 import numpy as np
 from jax import jit, vmap
@@ -7,15 +6,16 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import random as jrand
 
-from . import stats, aggregations
+from . import stats, aggregations, block
 from .project import FederatedGramSchmidt
+
 
 def nansum(A):
     snp_sum = jnp.nansum(A, axis=0)
     non_na_count = jnp.count_nonzero(~jnp.isnan(A))
     return snp_sum, non_na_count
 
-@jit
+
 def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]') -> 'np.ndarray[(1,), np.floating]':
     """Matrix-vector dot product
 
@@ -28,9 +28,19 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     Returns:
         np.ndarray[(1,), np.floating]: Vector.
     """
-    return vmap(jnp.vdot, (1, None), 0)(X, y)
+    assert X.ndim == 2 and y.ndim == 1
+    if isinstance(X, block.BlockDiagonalMatrix):
+        rowidx = np.cumsum([0] + [shape[0] for shape in X.blockshapes])
+        colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
+        res = np.empty(colidx[-1])
+        for i in range(X.nblocks):
+            res.view()[colidx[i]:colidx[i+1]] = X[i].T @ y.view()[rowidx[i]:rowidx[i+1]]
+        return res
+    else:
+        # fallback
+        return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
 
-@jit
+
 def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]') -> 'np.ndarray[(1,), np.floating]':
     """Matrix-vector multiplication
 
@@ -43,9 +53,19 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     Returns:
         np.ndarray[(1,), np.floating]: Vector.
     """
-    return vmap(jnp.vdot, (0, None), 0)(X, y)
+    assert X.ndim == 2 and y.ndim == 1
+    if isinstance(X, block.AbstractBlockDiagonalMatrix):
+        rowidx = np.cumsum([0] + [shape[0] for shape in X.blockshapes])
+        colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
+        res = np.empty(rowidx[-1])
+        for i in range(X.nblocks):
+            res.view()[rowidx[i]:rowidx[i+1]] = X[i] @ y.view()[colidx[i]:colidx[i+1]]
+        return res
+    else:
+        # fallback
+        return jit(vmap(jnp.vdot, (0, None), 0))(X, y)
 
-@jit
+
 def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]') -> 'np.ndarray[(1, 1), np.floating]':
     """Matrix-matrix dot product
 
@@ -58,9 +78,14 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
     Returns:
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
-    return vmap(mvmul, (None, 1), 1)(X.T, Y)
+    assert X.ndim == Y.ndim == 2
+    if isinstance(X, block.AbstractBlockDiagonalMatrix):
+        return block.BlockDiagonalMatrix([x.T @ y for (x, y) in zip(X.blocks, Y.blocks)])
+    else:
+        # fallback
+        return jit(vmap(mvmul, (None, 1), 1))(X.T, Y)
 
-@jit
+
 def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]') -> 'np.ndarray[(1, 1), np.floating]':
     """Matrix multiplication
 
@@ -73,7 +98,13 @@ def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.float
     Returns:
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
-    return vmap(mvmul, (None, 1), 1)(X, Y)
+    assert X.ndim == Y.ndim == 2
+    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
+        return block.BlockDiagonalMatrix([x @ y for (x, y) in zip(X.blocks, Y.blocks)])
+    else:
+        # fallback
+        return jit(vmap(mvmul, (None, 1), 1))(X, Y)
+
 
 def gen_mvmul(y: np.ndarray):
     @jit
@@ -81,6 +112,14 @@ def gen_mvmul(y: np.ndarray):
         return vmap(jnp.vdot, (0, None), 0)(X, y)
 
     return _mvmul
+
+
+def inv(X):
+    if isinstance(X, block.AbstractBlockDiagonalMatrix):
+        return block.BlockDiagonalMatrix([np.linalg.inv(blk) for blk in X.blocks])
+    else:
+        # fallback
+        return np.linalg.inv(X)
 
 
 def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -406,7 +445,7 @@ def create_proxy_matrix(A, U):
     """Calculate proxy matrix P
 
     Algo5/4
-    P is the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and 
+    P is the proxy data matrix with shape (k1*I, n), where n is the number of samples, k1 is the latent dimensions and
     I iterations depending on the convergence status and max iterations.
 
     Args:
@@ -437,7 +476,7 @@ def covariance_from_proxy_matrix(P):
 
 
 def local_V_from_proxy_matrix(P, Vp):
-    """Update V matrix 
+    """Update V matrix
 
     Use proxy data matrix P (k1*I, n) and eigenvectors Vp (k1*I, k2) from aggregator to get the V matrix with shape (n, k2)
 
@@ -477,7 +516,7 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
 
     if GT.shape != SIM.shape:
         raise ValueError(f'Inconcordance matrix shapes: {GT.shape} ground truth, {SIM.shape} simulation')
-    
+
     I = np.identity(GT.shape[1])
     def __test(A1, A2):
         A1tA2 = mmdot(A1,A2)
@@ -505,19 +544,19 @@ class AbsStandardization(abc.ABC):
 
     def local_col_nansum(self, A):
         raise NotImplementedError
-    
+
     def local_imputed_mean(self, A, mean):
         raise NotImplementedError
-    
+
     def global_mean(self, col_sum, row_count):
         raise NotImplementedError
-    
+
     def local_ssq(self, A, mean):
         raise NotImplementedError
-    
+
     def global_var(self, ssq, row_count):
         raise NotImplementedError
-    
+
     def local_standardize(self, A, var, delete):
         raise NotImplementedError
 
@@ -530,13 +569,13 @@ class FederatedStandardization(AbsStandardization):
         col_sum, row_count = stats.nansum(A)
         jump_to = 'global_mean'
         return col_sum, row_count, jump_to
-    
+
     def local_imputed_mean(self, A, mean):
         A = stats.impute_with_mean(A, mean)
         col_sum, row_count = stats.sum_and_count(A)
         jump_to = 'global_mean'
         return A, col_sum, row_count, jump_to
-    
+
     def global_mean(self, col_sum, row_count):
         col_sum = aggregations.SumUp()(*col_sum)
         row_count = aggregations.SumUp()(*row_count)
@@ -546,13 +585,13 @@ class FederatedStandardization(AbsStandardization):
         else:
             jump_to = 'local_ssq'
         return mean, jump_to
-    
+
     def local_ssq(self, A, mean):
         A = stats.make_mean_zero(A, mean)
         ssq = stats.sum_of_square(A)
         row_count = A.shape[0]
         return A, ssq, row_count
-    
+
     def global_var(self, ssq, row_count):
         ssq = aggregations.SumUp()(*ssq)
         row_count = aggregations.SumUp()(*row_count)
@@ -560,11 +599,11 @@ class FederatedStandardization(AbsStandardization):
         delete = jnp.where(var==0)[0]
         var = jnp.delete(var, delete)
         return var, delete
-    
+
     def local_standardize(self, A, var, delete):
         A = stats.standardize(A, var, delete)
         return A
-    
+
     @classmethod
     def standalone(cls, As):
         local_sums, local_counts = [], []
@@ -599,21 +638,21 @@ class FederatedStandardization(AbsStandardization):
             std_As.append(std_a)
 
         return std_As
-    
+
 
 class AbsVerticalSubspaceIteration(abc.ABC):
     def __init__(self):
         pass
-    
+
     def local_init(self, A, k1):
         raise NotImplementedError
-    
+
     def global_init(self, n_features, k1):
         raise NotImplementedError
-    
+
     def update_local_U(self, A, V):
         raise NotImplementedError
-    
+
     def update_global_U(self, U):
         raise NotImplementedError
 
@@ -622,10 +661,10 @@ class AbsVerticalSubspaceIteration(abc.ABC):
 
     def update_global_Us(self, U, Us, current_iteration, max_iterations):
         raise NotImplementedError
-    
+
     def update_local_V(self, A, U, converged, current_iteration, max_iterations):
         raise NotImplementedError
-    
+
 class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
     def __init__(self):
         super().__init__()
@@ -636,23 +675,23 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
         V, _ = jsp.linalg.qr(V, mode='economic')
         n_features = A.shape[0]
         return A, V, n_features
-    
+
     def global_init(self, n_features, k1):
         prev_U = init_rand_U(n_features, k1)
         current_iteration = 1
         converged = False
         Us = []
         return prev_U, current_iteration, converged, Us
-    
+
     def update_local_U(self, A, V):
         U = update_local_U(A, V)
         return U
-    
+
     def update_global_U(self, U):
         U = aggregations.SumUp()(*U)
         U = orthonormalize(U)
         return U
-    
+
     def check_convergence(self, U, prev_U, epsilon):
         converged, _ = check_eigenvector_convergence(U, prev_U, epsilon)
         return converged
@@ -660,7 +699,7 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
     def update_global_Us(self, U, Us, current_iteration):
         prev_U, Us, current_iteration = update_Us(U, Us, current_iteration)
         return prev_U, Us, current_iteration
-    
+
     def update_local_V(self, A, U, converged, current_iteration, max_iterations):
         V = update_local_V(A, U)
         if not converged and current_iteration < max_iterations:
@@ -668,7 +707,7 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
         else:
             jump_to = 'next'
         return V, jump_to
-    
+
     @classmethod
     def standalone(cls, As, k1=20, epsilon=1e-9, max_iterations=20):
         # edge init
@@ -705,16 +744,16 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
 class AbsRandomizedSVD(AbsVerticalSubspaceIteration):
     def __init__(self):
         super().__init__()
-    
+
     def decompose_global_Us(self, Us):
         raise NotImplementedError
-    
+
     def compute_local_covariance(self, A, U):
         raise NotImplementedError
-    
+
     def decompose_global_covariance(self, PtP, k2):
         raise NotImplementedError
-    
+
     def recontruct_local_V(self, P, Vp):
         raise NotImplementedError
 
@@ -725,17 +764,17 @@ class FederatedRandomizedSVD(FederatedVerticalSubspaceIteration):
     def decompose_global_Us(self, Us):
         U = decompose_U_stack(Us)
         return U
-    
+
     def compute_local_covariance(self, A, U):
         P = create_proxy_matrix(A, U)
         PPt = covariance_from_proxy_matrix(P)
         return P, PPt
-    
+
     def decompose_global_covariance(self, PPt, k2):
         PPt = aggregations.SumUp()(*PPt)
         Vp = svd(PPt)[0][:,:k2]
         return Vp
-    
+
     def recontruct_local_V(self, P, Vp):
         V = local_V_from_proxy_matrix(P, Vp)
         return V
@@ -769,7 +808,7 @@ class FederatedSVD(FederatedStandardization, FederatedRandomizedSVD, FederatedGr
         FederatedStandardization.__init__()
         FederatedRandomizedSVD.__init__()
         FederatedGramSchmidt.__init__()
-    
+
     @classmethod
     def standalone(cls, As, k1=20, k2=20, epsilon=1e-9, max_iterations=20):
         # Standardization
