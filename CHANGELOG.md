@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0]
+
+### Added
+
+- Add `BlockDiagonalMatrix`, `AbstractBlockDiagonalMatrix` and `BlockDiagonalMatrixIterator`.
+- Support indexing, shape, matrix-vector multiplication (`linalg.mvmul`), matrix-vector dot product (`linalg.mvdot`), matrix-matrix multiplication (`linalg.matmul`) and inverse operation (`linalg.inv`) for `BlockDiagonalMatrix`.
+
 ## [0.14.0]
 
 ### Added
