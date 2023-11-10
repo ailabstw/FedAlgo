@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 import numpy as np
 from scipy.sparse import block_diag
@@ -59,7 +60,7 @@ class BlockDiagonalMatrixIterator:
 class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
     """Block diagonal matrix which stores dense numpy matrices separately."""
 
-    def __init__(self, blocks: list[np.ndarray]) -> None:
+    def __init__(self, blocks: List[np.ndarray]) -> None:
         super().__init__()
         self.__blocks = blocks
 
