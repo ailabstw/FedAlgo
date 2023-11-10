@@ -28,7 +28,7 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     Returns:
         np.ndarray[(1,), np.floating]: Vector.
     """
-    assert X.ndim == 2 and y.ndim == 1
+    # assert X.ndim == 2 and y.ndim == 1
     if isinstance(X, block.BlockDiagonalMatrix):
         rowidx = np.cumsum([0] + [shape[0] for shape in X.blockshapes])
         colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
@@ -53,7 +53,7 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     Returns:
         np.ndarray[(1,), np.floating]: Vector.
     """
-    assert X.ndim == 2 and y.ndim == 1
+    # assert X.ndim == 2 and y.ndim == 1
     if isinstance(X, block.AbstractBlockDiagonalMatrix):
         rowidx = np.cumsum([0] + [shape[0] for shape in X.blockshapes])
         colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
