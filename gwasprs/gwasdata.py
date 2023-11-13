@@ -247,7 +247,7 @@ class GWASData:
         if kwargs.get('add_unique_snp_id') is True:
             self.add_unique_snp_id()
 
-    def subset(self, sample_list=None, snp_list=None, order=False, list_is_idx=False):
+    def subset(self, sample_list=None, snp_list=None, order=False, list_is_idx=False, **kwargs):
         # Sample information
         if sample_list:
             self.__phenotype, sample_idx, dropped_fam = subset_samples(sample_list, self.__phenotype, order, list_is_idx)
