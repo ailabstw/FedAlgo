@@ -3,5 +3,5 @@ scipy
 jax[cpu]
 pooch
 bed_reader
-polars
+pandas
 ordered_set
