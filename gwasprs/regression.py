@@ -77,9 +77,8 @@ class LinearRegression(LinearModel):
         return jnp.vdot(res.T, res)
 
     def t_stats(self, sse, XtX, dof):
-        XtXinv = jnp.linalg.inv(XtX)
-        sigma_squared = sse / dof
-        vars = (sigma_squared * XtXinv).diagonal()
+        mse = sse / dof
+        vars = mse * jnp.linalg.inv(XtX).diagonal()
         std = jnp.sqrt(vars)
         t_stat = self.coef / std
         return t_stat
@@ -161,9 +160,8 @@ class BatchedLinearRegression(LinearModel):
         return linalg.batched_vdot(res, res)
 
     def t_stats(self, sse, XtX, dof):
-        XtXinv = linalg.batched_inv(XtX)
-        sigma_squared = jnp.expand_dims(jnp.expand_dims(sse / dof, -1), -1)
-        vars = linalg.batched_diagonal(sigma_squared * XtXinv)
+        mse = jnp.expand_dims(jnp.expand_dims(sse / dof, -1), -1)
+        vars = linalg.batched_diagonal(mse * linalg.batched_inv(XtX))
         std = jnp.sqrt(vars)
         t_stat = self.coef / std
         return t_stat
