@@ -1,6 +1,5 @@
 import unittest
 import numpy as np
-from scipy.sparse import block_diag
 
 import gwasprs
 
@@ -38,7 +37,7 @@ class BlockCovarianceTestCase(unittest.TestCase):
         self.A = np.random.rand(self.d1 - 1, self.d2)
         self.B = np.random.rand(self.d1 - 2, self.d2)
         self.C = np.random.rand(self.d1 - 3, self.d2)
-        self.X = block_diag([self.A, self.B, self.C])
+        self.X = gwasprs.block.BlockDiagonalMatrix([self.A, self.B, self.C])
         self.y = np.random.rand(3 * self.d2)
 
     def tearDown(self):
@@ -49,11 +48,12 @@ class BlockCovarianceTestCase(unittest.TestCase):
         self.y = None
 
     def test_blocked_unnorm_autocovariance(self):
-        result = gwasprs.stats.blocked_unnorm_autocovariance(self.X)
-        ans = (self.X.T @ self.X).toarray()
+        result = gwasprs.stats.blocked_unnorm_autocovariance(self.X).toarray()
+        ans = gwasprs.linalg.mmdot(self.X, self.X).toarray()
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_blocked_unnorm_covariance(self):
-        result = gwasprs.stats.blocked_unnorm_covariance(self.X.T, self.y)
-        ans = self.X @ self.y
+        X = gwasprs.block.BlockDiagonalMatrix([self.A.T, self.B.T, self.C.T])
+        result = gwasprs.stats.blocked_unnorm_covariance(X, self.y)
+        ans = gwasprs.linalg.mvdot(X, self.y)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
