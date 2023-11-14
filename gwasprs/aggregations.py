@@ -5,6 +5,7 @@ from ordered_set import OrderedSet
 
 
 class Aggregation:
+
     def __call__(self, *xs):
         self.n = len(xs)
         assert self.n > 0, "xs should not be empty"
