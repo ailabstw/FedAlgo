@@ -55,12 +55,7 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     """
     # assert X.ndim == 2 and y.ndim == 1
     if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        rowidx = np.cumsum([0] + [shape[0] for shape in X.blockshapes])
-        colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
-        res = np.empty(rowidx[-1])
-        for i in range(X.nblocks):
-            res.view()[rowidx[i]:rowidx[i+1]] = X[i] @ y.view()[colidx[i]:colidx[i+1]]
-        return res
+        return X @ y
     else:
         # fallback
         return jit(vmap(jnp.vdot, (0, None), 0))(X, y)
@@ -99,8 +94,8 @@ def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.float
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     assert X.ndim == Y.ndim == 2
-    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
-        return block.BlockDiagonalMatrix([x @ y for (x, y) in zip(X.blocks, Y.blocks)])
+    if isinstance(X, block.AbstractBlockDiagonalMatrix):
+        return X @ Y
     else:
         # fallback
         return jit(vmap(mvmul, (None, 1), 1))(X, Y)

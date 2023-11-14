@@ -230,7 +230,7 @@ class BlockedLinearRegression(LinearModel):
         if isinstance(algo, linalg.QRSolver):
             beta = algo(X, y)
         else:
-            beta = algo((X.T @ X).toarray(), X.T @ y)
+            beta = algo(linalg.mmdot(X, X).toarray(), linalg.mvdot(X, y))
         return BlockedLinearRegression(beta = beta, nmodels = nmodels)
 
     def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
@@ -243,10 +243,10 @@ class BlockedLinearRegression(LinearModel):
         return sse
 
     def t_stats(self, sse, XtX, dof):
-        XtXinv = np.linalg.inv(XtX)
+        XtXinv = linalg.inv(XtX)
         sigma_squared = sse / dof
-        vars = sigma_squared * XtXinv
-        std = np.sqrt(vars.diagonal())
+        vars = sigma_squared * XtXinv.diagonal()
+        std = np.sqrt(vars)
         t_stat = self.coef / std
         return t_stat
 

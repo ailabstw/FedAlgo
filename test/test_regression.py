@@ -3,7 +3,8 @@ import gwasprs
 import gwasprs.linalg as linalg
 import numpy as np
 from scipy.stats import norm
-from scipy.sparse import csr_array, block_diag
+from scipy.sparse import csr_array
+
 
 class LinearRegressionTestCase(unittest.TestCase):
 
@@ -200,7 +201,7 @@ class BlockedLinearRegressionTestCase(unittest.TestCase):
         self.n = 111
         self.dim = 3
         self.nmodels = 3
-        self.X = block_diag([
+        self.X = gwasprs.block.BlockDiagonalMatrix([
             np.random.rand(self.n-1, self.dim),
             np.random.rand(self.n-10, self.dim),
             np.random.rand(self.n-100, self.dim),
@@ -249,7 +250,7 @@ class BlockedLinearRegressionTestCase(unittest.TestCase):
 
     def test_t_stats(self):
         sse = np.repeat(self.model.sse(self.X, self.y, self.nobss), [self.nmodels,])
-        XtX = (self.X.T @ self.X).toarray()
+        XtX = linalg.mmdot(self.X, self.X)
         dof = np.repeat(self.model.dof(self.nobss), [self.nmodels,])
         result = self.model.t_stats(sse, XtX, dof)
         self.assertEqual((self.nmodels * self.dim, ), result.shape)
