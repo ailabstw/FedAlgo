@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
+import copy
 
 import numpy as np
 from scipy.sparse import issparse
@@ -58,7 +59,7 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
         super().__init__()
         checks = [isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x) for x in blocks]
         assert np.all(checks)
-        self.__blocks = blocks
+        self.__blocks = copy.deepcopy(blocks)
 
     @property
     def nblocks(self):
@@ -76,8 +77,12 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
         return self.blocks[i].shape
 
     def append(self, x: np.ndarray):
-        assert isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x)
-        return self.__blocks.append(x)
+        if isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
+            return self.__blocks.append(x)
+        elif isinstance(x, BlockDiagonalMatrix):
+            return self.__blocks.extend(x.blocks)
+        else:
+            raise Exception(f"cannot append objects of type {type(x)}")
 
     def __iter__(self):
         return BlockDiagonalMatrixIterator(self)
@@ -104,11 +109,3 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
 
     def diagonal(self):
         return np.concatenate([blk.diagonal() for blk in self.blocks])
-
-
-def dropna_block_diag(genotype, covariates):
-    As = BlockDiagonalMatrix([])
-    for i in range(genotype.shape[1]):
-        A = mask.dropnan(array.concat((genotype[:, i:i+1], covariates)))
-        As.append(A)
-    return As

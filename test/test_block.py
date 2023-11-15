@@ -45,6 +45,20 @@ class BlockDiagonalTestCase(unittest.TestCase):
         for (i, blk) in enumerate(result):
             np.testing.assert_array_almost_equal(self.Xs[i], blk, decimal=5)
 
+    def test_append_block_diag(self):
+        result = gwasprs.block.BlockDiagonalMatrix(self.Xs)
+        Y = gwasprs.block.BlockDiagonalMatrix([
+            np.random.rand(7, self.dim),
+            np.random.rand(11, self.dim),
+            np.random.rand(13, self.dim),
+        ])
+        result.append(Y)
+
+        for (i, blk) in enumerate(self.Xs):
+            np.testing.assert_array_almost_equal(blk, result[i], decimal=5)
+        for (i, blk) in enumerate(Y):
+            np.testing.assert_array_almost_equal(blk, result[i + len(self.Xs)], decimal=5)
+
     def test_mvdot(self):
         Xs = [
             np.random.rand(self.dim, 7),
