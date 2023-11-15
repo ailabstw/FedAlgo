@@ -9,6 +9,48 @@ import jax.scipy as jsp
 class LinAlgTestCase(unittest.TestCase):
 
     def setUp(self):
+        A = np.random.rand(4, 4)
+        self.A = A.T @ A
+        self.X = np.array(
+            [[1,1,1],
+             [2,2,2],
+             [3,3,3],
+             [4,4,4]]
+        )
+        self.y = np.array(
+            [[1],
+             [2],
+             [3]]
+        )
+
+    def tearDown(self):
+        self.X = None
+        self.y = None
+
+    def test_cholesky_solver(self):
+        y = np.random.randn(4)
+        result = gwasprs.linalg.CholeskySolver()(self.A, y)
+        ans = slinalg.solve(self.A, y)
+        norm = np.linalg.norm(result - ans)
+        self.assertAlmostEqual(norm, 0, places=5)
+
+    def test_cholesky_solver_for_block_diagonal(self):
+        A = gwasprs.block.BlockDiagonalMatrix([
+            np.random.rand(13, 4),
+            np.random.rand(17, 4),
+            np.random.rand(19, 4),
+        ])
+        A = gwasprs.linalg.mmdot(A, A)
+        y = np.random.randn(3*4)
+        result = gwasprs.linalg.CholeskySolver()(A, y)
+        ans = slinalg.solve(A.toarray(), y)
+        norm = np.linalg.norm(result - ans)
+        self.assertAlmostEqual(norm, 0, places=5)
+
+
+class BatchedLinAlgTestCase(unittest.TestCase):
+
+    def setUp(self):
         key = random.PRNGKey(758493)
         A = random.uniform(key, shape=(4, 4))
         A = jnp.expand_dims(A.T @ A, axis=0)
@@ -149,7 +191,7 @@ class FederatedSVDTestCase(unittest.TestCase):
     def test_federated_vertical_subspace_iteration(self):
         As, Hs, local_Gs = gwasprs.linalg.FederatedVerticalSubspaceIteration.standalone(self.global_As_ans.copy(), self.k1, self.epsilon, self.max_iterations)
         for i in range(len(As)):
-            assert As[i].T.shape == self.global_As_ans[i].shape 
+            assert As[i].T.shape == self.global_As_ans[i].shape
             assert Hs[i].shape == (self.n_SNPs, self.k2)
             assert local_Gs[i].shape == (self.n_samples[i], self.k2)
 
@@ -181,7 +223,6 @@ class FederatedSVDTestCase(unittest.TestCase):
         gwasprs.linalg.eigenvec_concordance_estimation(self.global_H_ans, result_H, decimal=3)
 
 
-    
-    
 
-    
+
+
