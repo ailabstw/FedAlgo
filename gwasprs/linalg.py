@@ -267,7 +267,15 @@ class CholeskySolver(LinearSolver):
             c, low = slinalg.cho_factor(X)
             return slinalg.cho_solve((c, low), y)
         elif isinstance(X, block.BlockDiagonalMatrix):
-            return
+            start = 0
+            res = np.empty(X.shape[0])
+            for A in X:
+                d = A.shape[1]
+                c, low = slinalg.cho_factor(A)
+                x = slinalg.cho_solve((c, low), y.view()[start:start+d])
+                res.view()[start:start+d] = x
+                start += d
+            return res
         else:
             raise Exception(f"CholeskySolver doesn't support matrix of type {type(X)}")
 
