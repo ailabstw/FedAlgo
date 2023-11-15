@@ -76,6 +76,10 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
     def blockshape(self, i: int):
         return self.blocks[i].shape
 
+    @property
+    def shape(self):
+        return tuple(map(sum, zip(*self.blockshapes)))
+
     def append(self, x: np.ndarray):
         if isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
             return self.__blocks.append(x)
