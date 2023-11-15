@@ -1,6 +1,8 @@
 import abc
 
 import numpy as np
+import scipy.linalg as slinalg
+import jax
 from jax import jit, vmap
 from jax import numpy as jnp
 from jax import scipy as jsp
@@ -254,12 +256,20 @@ class CholeskySolver(LinearSolver):
         super().__init__()
 
     def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        # L = Cholesky(X)
-        L = jnp.linalg.cholesky(X)
-        # solve Lz = y
-        z = jsp.linalg.solve_triangular(L, y, lower=True)
-        # solve Lt beta = z
-        return jsp.linalg.solve_triangular(L, z, trans="T", lower=True)
+        if isinstance(X, jax.Array):
+            # L = Cholesky(X)
+            L = jnp.linalg.cholesky(X)
+            # solve Lz = y
+            z = jsp.linalg.solve_triangular(L, y, lower=True)
+            # solve Lt beta = z
+            return jsp.linalg.solve_triangular(L, z, trans="T", lower=True)
+        elif isinstance(X, (np.ndarray, np.generic)):
+            c, low = slinalg.cho_factor(X)
+            return slinalg.cho_solve((c, low), y)
+        elif isinstance(X, block.BlockDiagonalMatrix):
+            return
+        else:
+            raise Exception(f"CholeskySolver doesn't support matrix of type {type(X)}")
 
 
 class BatchedCholeskySolver(LinearSolver):
