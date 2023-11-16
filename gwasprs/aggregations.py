@@ -3,6 +3,8 @@ from scipy.sparse import issparse
 import jax
 from ordered_set import OrderedSet
 
+from . import block
+
 
 class Aggregation:
 
@@ -20,6 +22,8 @@ class Aggregation:
             return self.aggregate_scalars(*xs)
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
             return self.aggregate_arrays(*xs)
+        elif isinstance(x, block.BlockDiagonalMatrix):
+            return self.aggregate_block_diags(*xs)
         else:
             raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray, scipy sparse array or list of np.ndarray")
 
@@ -39,6 +43,13 @@ class SumUp(Aggregation):
             agg_weight.append(tmp_array)
 
         return agg_weight
+
+    def aggregate_block_diags(self, *xs):
+        result = xs[0]
+        for i in range(1, self.n):
+            result = result + xs[i]
+
+        return result
 
     def aggregate_scalars(self, *xs):
         return sum(xs)
