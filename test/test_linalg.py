@@ -34,6 +34,15 @@ class LinAlgTestCase(unittest.TestCase):
         norm = np.linalg.norm(result - ans)
         self.assertAlmostEqual(norm, 0, places=5)
 
+        # test for numerical stability
+        A = self.A.copy()
+        A[0, :] = 0
+        A[:, 0] = 0
+        result = gwasprs.linalg.CholeskySolver()(A, y)
+        ans = slinalg.solve(A + np.finfo(Ａ.dtype).eps, y)
+        norm = np.linalg.norm(result - ans)
+        self.assertAlmostEqual(norm, 0, places=5)
+
     def test_cholesky_solver_for_block_diagonal(self):
         A = gwasprs.block.BlockDiagonalMatrix([
             np.random.rand(13, 4),
