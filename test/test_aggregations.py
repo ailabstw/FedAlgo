@@ -37,6 +37,16 @@ class SumUpTestCase(unittest.TestCase):
         ans = jnp.array(self.A) + jnp.array(self.B) + jnp.array(self.C)
         np.testing.assert_array_almost_equal(ans, result)
 
+    def test_sum_of_block_diags(self):
+        A = gwasprs.block.BlockDiagonalMatrix([
+            np.random.rand(3, 5),
+            np.random.rand(7, 11),
+            np.random.rand(13, 17),
+        ])
+        result = gwasprs.aggregations.SumUp()(A, A, A)
+        ans = A.toarray() + A.toarray() + A.toarray()
+        np.testing.assert_array_almost_equal(ans, result.toarray())
+
     def test_sum_of_numbers(self):
         result = gwasprs.aggregations.SumUp()(1, 2.5, 3.4)
         ans = 6.9
