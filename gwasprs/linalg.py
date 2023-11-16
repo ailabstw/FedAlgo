@@ -258,20 +258,23 @@ class CholeskySolver(LinearSolver):
     def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         if isinstance(X, jax.Array):
             # L = Cholesky(X)
-            L = jnp.linalg.cholesky(X)
+            # Add machine eps to avoid zeros in matrix and increase numerical stability
+            L = jnp.linalg.cholesky(X + np.finfo(X.dtype).eps)
             # solve Lz = y
             z = jsp.linalg.solve_triangular(L, y, lower=True)
             # solve Lt beta = z
             return jsp.linalg.solve_triangular(L, z, trans="T", lower=True)
         elif isinstance(X, (np.ndarray, np.generic)):
-            c, low = slinalg.cho_factor(X)
+            # Add machine eps to avoid zeros in matrix and increase numerical stability
+            c, low = slinalg.cho_factor(X + np.finfo(X.dtype).eps)
             return slinalg.cho_solve((c, low), y)
         elif isinstance(X, block.BlockDiagonalMatrix):
             start = 0
             res = np.empty(X.shape[0])
             for A in X:
                 d = A.shape[1]
-                c, low = slinalg.cho_factor(A)
+                # Add machine eps to avoid zeros in matrix and increase numerical stability
+                c, low = slinalg.cho_factor(A + np.finfo(A.dtype).eps)
                 x = slinalg.cho_solve((c, low), y.view()[start:start+d])
                 res.view()[start:start+d] = x
                 start += d
