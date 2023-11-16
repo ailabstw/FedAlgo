@@ -97,6 +97,15 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
         else:
             raise IndexError
 
+    def __add__(self, value):
+        if isinstance(value, (np.ndarray, np.generic, jax.Array)):
+            return self.toarray() + value
+        elif isinstance(value, AbstractBlockDiagonalMatrix):
+            assert self.blockshapes == value.blockshapes
+            return BlockDiagonalMatrix([x + y for (x, y) in zip(self, value)])
+        else:
+            raise Exception(f"value type of {type(value)} not supported")
+
     def __matmul__(self, value):
         if isinstance(value, AbstractBlockDiagonalMatrix):
             return BlockDiagonalMatrix([x @ y for (x, y) in zip(self.blocks, value.blocks)])

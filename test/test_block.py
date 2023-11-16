@@ -15,6 +15,11 @@ class BlockDiagonalTestCase(unittest.TestCase):
             np.random.rand(13, self.dim),
         ]
         self.X = gwasprs.block.BlockDiagonalMatrix(self.Xs)
+        self.Y = gwasprs.block.BlockDiagonalMatrix([
+            np.random.rand(7, self.dim),
+            np.random.rand(11, self.dim),
+            np.random.rand(13, self.dim),
+        ])
         self.y = np.random.rand(3 * self.dim)
 
     def tearDown(self):
@@ -58,6 +63,13 @@ class BlockDiagonalTestCase(unittest.TestCase):
             np.testing.assert_array_almost_equal(blk, result[i], decimal=5)
         for (i, blk) in enumerate(Y):
             np.testing.assert_array_almost_equal(blk, result[i + len(self.Xs)], decimal=5)
+
+    def test_add(self):
+        result = self.X + self.Y
+
+        for (X, Y, res) in zip(self.X, self.Y, result):
+            ans = X + Y
+            np.testing.assert_array_almost_equal(ans, res, decimal=5)
 
     def test_mvdot(self):
         Xs = [
