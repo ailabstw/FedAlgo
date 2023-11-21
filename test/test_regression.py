@@ -234,7 +234,7 @@ class BlockedLinearRegressionTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.y - self.model.predict(self.X), result, decimal=5)
 
     def test_sse(self):
-        result = self.model.sse(self.X, self.y, self.nobss)
+        result = self.model.sse(self.X, self.y)
         resd = self.model.residual(self.X, self.y)
         ans = np.array([
             resd[0:self.n-1].T @ resd[0:self.n-1],
@@ -249,7 +249,7 @@ class BlockedLinearRegressionTestCase(unittest.TestCase):
         np.testing.assert_array_equal(ans, result)
 
     def test_t_stats(self):
-        sse = np.repeat(self.model.sse(self.X, self.y, self.nobss), [self.nmodels,])
+        sse = np.repeat(self.model.sse(self.X, self.y), [self.nmodels,])
         XtX = linalg.mmdot(self.X, self.X)
         dof = np.repeat(self.model.dof(self.nobss), [self.nmodels,])
         result = self.model.t_stats(sse, XtX, dof)

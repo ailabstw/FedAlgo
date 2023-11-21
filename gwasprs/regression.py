@@ -5,7 +5,7 @@ from jax import numpy as jnp
 from jax import pmap
 from scipy.sparse import issparse
 
-from . import linalg, stats, utils
+from . import linalg, stats, utils, block
 
 
 class LinearModel(object, metaclass=ABCMeta):
@@ -234,9 +234,11 @@ class BlockedLinearRegression(LinearModel):
     def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return y - self.predict(X)
 
-    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nobss):
+    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+        assert isinstance(X, block.BlockDiagonalMatrix)
         res = self.residual(X, y)
-        block_starts = np.cumsum(np.insert(nobss, 0, [0.]))
+        nobss = [sh[0] for sh in X.blockshapes]
+        block_starts = np.cumsum([0] + nobss)
         sse = np.array([res[block_starts[i]:block_starts[i+1]].T @ res[block_starts[i]:block_starts[i+1]] for i in range(len(block_starts)-1)])
         return sse
 
@@ -248,7 +250,7 @@ class BlockedLinearRegression(LinearModel):
             y (np.ndarray): _description_
             nobss (_type_): list of numbers of observations.
         """
-        return self.sse(X, y, nobss) / self.dof(nobss)
+        return self.sse(X, y) / self.dof(nobss)
 
     def t_stats(self, sse, XtX, dof):
         mse = sse / dof
