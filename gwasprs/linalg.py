@@ -112,11 +112,12 @@ def gen_mvmul(y: np.ndarray):
 
 
 def inv(X):
+    # Add machine eps to avoid zeros in matrix and increase numerical stability
     if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        return block.BlockDiagonalMatrix([np.linalg.inv(blk) for blk in X.blocks])
+        return block.BlockDiagonalMatrix([np.linalg.inv(blk + np.finfo(blk.dtype).eps) for blk in X.blocks])
     else:
         # fallback
-        return np.linalg.inv(X)
+        return np.linalg.inv(X + np.finfo(X.dtype).eps)
 
 
 def batched_vdot(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -239,7 +240,8 @@ class InverseSolver(LinearSolver):
 
     def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         # solve beta for X @ beta = y
-        return jnp.linalg.solve(X, y)
+        # Add machine eps to avoid zeros in matrix and increase numerical stability
+        return jnp.linalg.solve(X + np.finfo(X.dtype).eps, y)
 
 
 class BatchedInverseSolver(LinearSolver):

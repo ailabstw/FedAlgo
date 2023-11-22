@@ -6,6 +6,7 @@ from jax import random
 import jax.numpy as jnp
 import jax.scipy as jsp
 
+
 class LinAlgTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -26,6 +27,21 @@ class LinAlgTestCase(unittest.TestCase):
     def tearDown(self):
         self.X = None
         self.y = None
+
+    def test_inv(self):
+        A = self.A.copy()
+        A[0, :] = 0
+        A[:, 0] = 0
+        result = gwasprs.linalg.inv(A)
+        ans = np.linalg.inv(A[1:, 1:])
+        np.testing.assert_array_almost_equal(ans, result[1:, 1:], decimal=5)
+
+    def test_inverse_solver(self):
+        y = np.random.randn(4)
+        result = gwasprs.linalg.InverseSolver()(self.A, y)
+        ans = slinalg.solve(self.A, y)
+        norm = np.linalg.norm(result - ans)
+        self.assertAlmostEqual(norm, 0, places=4)
 
     def test_cholesky_solver(self):
         y = np.random.randn(4)
