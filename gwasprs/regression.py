@@ -254,6 +254,13 @@ class BlockedLinearRegression(LinearModel):
 
     def t_stats(self, sse, XtX, dof):
         mse = sse / dof
+
+        # ensure dimension of mse and XtX are matched, otherwise align them together
+        all_coef_dim = XtX.shape[0]
+        if all_coef_dim != mse.shape[0]:
+            coef_dim = all_coef_dim // mse.shape[0]
+            mse = np.repeat(mse, coef_dim)
+
         vars = mse * linalg.inv(XtX).diagonal()
         std = np.sqrt(vars)
         t_stat = self.coef / std
