@@ -40,8 +40,7 @@ class LinAlgTestCase(unittest.TestCase):
         y = np.random.randn(4)
         result = gwasprs.linalg.InverseSolver()(self.A, y)
         ans = slinalg.solve(self.A, y)
-        norm = np.linalg.norm(result - ans)
-        self.assertAlmostEqual(norm, 0, places=4)
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_cholesky_solver(self):
         y = np.random.randn(4)
@@ -55,7 +54,7 @@ class LinAlgTestCase(unittest.TestCase):
         A[0, :] = 0
         A[:, 0] = 0
         result = gwasprs.linalg.CholeskySolver()(A, y)
-        ans = slinalg.solve(A + np.finfo(Ａ.dtype).eps, y)
+        ans = slinalg.solve(A + np.finfo(A.dtype).eps, y)
         norm = np.linalg.norm(result - ans)
         self.assertAlmostEqual(norm, 0, places=5)
 
