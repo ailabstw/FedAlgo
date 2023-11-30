@@ -1,34 +1,57 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "gwasprs"
 version = "0.16.3"
 
 authors = [
-    { name="Yueh-Hua Tu", email="yuehhua.tu@ailabs.tw" },
-    { name="Yi-Lun Lee", email="yilun.lee@ailabs.tw" },
-    { name="Jian-Hung Wen", email="jianhung.wen@ailabs.tw"},
+    "Yueh-Hua Tu <yuehhua.tu@ailabs.tw>",
+    "Yi-Lun Lee <yilun.lee@ailabs.tw>",
+    "Jian-Hung Wen <jianhung.wen@ailabs.tw>",
 ]
 
 description = "A GWAS-PRS package for supporting federated analysis"
-
-requires-python = ">=3.8"
+readme = "README.md"
 
 classifiers = [
    "Programming Language :: Python :: 3",
    "Operating System :: OS Independent",
 ]
 
-dependencies = [
-  'numpy >= 1, < 2',
-  'scipy >= 1, < 2',
-  'jax >= 0.4, < 0.5',
-  'pooch >= 1, < 2',
-  'bed_reader >= 0.2, < 0.3',
-  'ordered_set >= 4, < 5',
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+numpy = [
+    {version = "~1", python = ">=3.8,<3.12"},
 ]
+scipy = [
+    {version = "~1", python = ">=3.8,<3.12"},
+]
+jax = "~0.4"
+jaxlib = "^0.4"
+pooch = "~1"
+bed_reader = "~0.2"
+pandas = "^2"
+ordered_set = "~4"
 
-[tool.setuptools.packages]
-find = {}
+[tool.poetry.group.test]
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4"
+
+[tool.poetry.group.doc]
+
+[tool.poetry.group.doc.dependencies]
+sphinx = "^6.2"
+myst-parser = "^2.0"
+
+[tool.poetry.group.packaging]
+
+[tool.poetry.group.packaging.dependencies]
+build = "~1"
+
+[tool.poetry.group.publishing]
+
+[tool.poetry.group.publishing.dependencies]
+twine = "~4"
