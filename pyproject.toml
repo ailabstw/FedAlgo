@@ -21,14 +21,12 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.13"
+python = ">=3.8,<3.12"
 numpy = [
     {version = "~1", python = ">=3.8,<3.12"},
-    {version = "^1.26", python = "^3.12"}
 ]
 scipy = [
     {version = "~1", python = ">=3.8,<3.12"},
-    {version = "^1.11", python = "^3.12"}
 ]
 jax = "~0.4"
 jaxlib = "^0.4"
