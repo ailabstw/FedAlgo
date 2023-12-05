@@ -2,6 +2,7 @@ from typing import List, Set
 import os
 import logging
 from warnings import warn
+import time
 
 import numpy as np
 import pandas as pd
@@ -56,7 +57,8 @@ def redirect_genotype(GT, snp_idx):
 def dropped_info(data, subset, cols):
     data_id = list(zip(*data[cols].to_dict('list').values()))
     subset_id = list(zip(*subset[cols].to_dict('list').values()))
-    dropped_idx = [idx for idx, id in enumerate(data_id) if id not in subset_id]
+    mask = ~np.isin(data_id, subset_id)
+    dropped_idx = np.where(mask)[0]
     return data.iloc[dropped_idx,:]
 
 def update_dropped(prev, update):
@@ -93,10 +95,7 @@ def subset_samples(sample_list:(str, list, tuple), data, order=False, list_is_id
     # Get the indices of samples in original data for getting the ordered genotype matrix.
     sample_idx = subset_data.merge(data.reset_index())['index'].to_list()
 
-    # Dropped data
-    dropped_data = dropped_info(data, subset_data, ['FID','IID'])
-
-    return subset_data, sample_idx, dropped_data
+    return subset_data, sample_idx
 
 def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=False):
     """
@@ -129,10 +128,7 @@ def subset_snps(snp_list:(str, list, tuple), data, order=False, list_is_idx=Fals
     # Get the indices of snps in original data for getting the ordered genotype matrix.
     snp_idx = subset_snps.merge(data.reset_index())['index'].to_list()
 
-    # Dropped data
-    dropped_data = dropped_info(data, subset_snps, ['ID'])
-
-    return subset_snps, snp_idx, dropped_data
+    return subset_snps, snp_idx
 
 def index_non_missing_samples(FAM, COV=None):
     """
@@ -220,9 +216,6 @@ class GWASData:
         self.__phenotype = phenotype
         self.__snp = snp
         self.__covariate = covariate
-        self.__dropped_phenotype = pd.DataFrame()
-        self.__dropped_snp = pd.DataFrame()
-        self.__dropped_covariate = pd.DataFrame()
 
     @classmethod
     def read(cls, bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
@@ -250,24 +243,22 @@ class GWASData:
     def subset(self, sample_list=None, snp_list=None, order=False, list_is_idx=False, **kwargs):
         # Sample information
         if sample_list:
-            self.__phenotype, sample_idx, dropped_fam = subset_samples(sample_list, self.__phenotype, order, list_is_idx)
-            self.__dropped_phenotype = update_dropped(self.__dropped_phenotype, dropped_fam)
+            self.__phenotype, sample_idx = subset_samples(sample_list, self.__phenotype, order, list_is_idx)
 
             if self.__covariate is not None:
-                self.__covariate, _, dropped_cov = subset_samples(sample_list, self.__covariate, order, list_is_idx)
-                self.__dropped_covariate = update_dropped(self.__dropped_covariate, dropped_cov)
+                self.__covariate, _ = subset_samples(sample_list, self.__covariate, order, list_is_idx)
         else:
-            sample_idx = list(self.__phenotype.index)
+            sample_idx = slice(None)
 
         # SNP information
         if snp_list:
-            self.__snp, snp_idx, dropped_bim = subset_snps(snp_list, self.__snp, order, list_is_idx)
-            self.__dropped_snp = update_dropped(self.__dropped_snp, dropped_bim)
+            self.__snp, snp_idx = subset_snps(snp_list, self.__snp, order, list_is_idx)
         else:
-            snp_idx = list(self.__snp.index)
+            snp_idx = slice(None)
 
         # Genotype information
-        self.__genotype = self.__genotype[np.ix_(sample_idx, snp_idx)]
+        if (sample_list or snp_list) is not None:  # Don't remove
+            self.__genotype = self.__genotype[np.s_[sample_idx, snp_idx]] # This step consts lots of time
 
     def impute_covariates(self):
         self.__covariate = impute_cov(self.__covariate)
@@ -281,7 +272,7 @@ class GWASData:
         unique_id, sorted_snp_idx = create_unique_snp_id(self.__snp, to_byte=False, to_dict=False)
         self.__snp['rsID'] = self.__snp['ID']
         self.__snp['ID'] = unique_id
-        self.__genotype = redirect_genotype(self.__genotype, sorted_snp_idx)
+        self.__genotype = redirect_genotype(self.__genotype, sorted_snp_idx) # This step consts lots of time
 
     @property
     def phenotype(self):
@@ -332,18 +323,6 @@ class GWASData:
     def autosome_snp_table(self):
         assert 'rsID' in self.__snp.columns
         return create_snp_table(self.autosome_snp_id, self.autosome_rsID)
-
-    @property
-    def dropped_phenotype(self):
-        return self.__dropped_phenotype
-
-    @property
-    def dropped_covariate(self):
-        return self.__dropped_covariate
-
-    @property
-    def dropped_snp(self):
-        return self.__dropped_snp
 
     def __eq__(self, other):
         if self.covariate is None and other.covariate is None:
