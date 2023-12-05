@@ -36,6 +36,7 @@ def create_unique_snp_id(BIM, to_byte=True, to_dict=False):
     If the A1 and A2 are switched, record the SNP index for adjusting the genptype values (0 > 2, 2 > 0).
     """
     unique_id, sorted_snp_idx = [], []
+    BIM = BIM.reset_index(drop=True)
     for line in BIM.iterrows():
         CHR = str(line[1]['CHR'])
         POS = str(line[1]['POS'])

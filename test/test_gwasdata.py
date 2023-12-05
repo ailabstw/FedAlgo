@@ -97,7 +97,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
             snp = self.snp
-            phenotype = self.phenotype.loc[idx[0]]
+            phenotype = self.phenotype.iloc[idx[0]]
             ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
             np.array_equal(ans.genotype, result.genotype, equal_nan=True)
@@ -131,8 +131,8 @@ class GWASDataIteratorTestCase(unittest.TestCase):
 
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
-            snp = self.snp.loc[idx[1]]
-            phenotype = self.phenotype.loc[idx[0]]
+            snp = self.snp.iloc[idx[1]]
+            phenotype = self.phenotype.iloc[idx[0]]
             ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
             self.assertEqual(ans, result)
@@ -161,8 +161,8 @@ class GWASDataIteratorTestCase(unittest.TestCase):
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
             snp = self.snp
-            phenotype = self.phenotype.loc[idx[0]]
-            cov = self.cov.loc[idx[0]]
+            phenotype = self.phenotype.iloc[idx[0]]
+            cov = self.cov.iloc[idx[0]]
             ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
 
             self.assertEqual(ans, result)
