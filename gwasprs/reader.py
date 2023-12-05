@@ -54,7 +54,7 @@ class FamReader:
 
     def read_range(self, range):
         self.read()
-        return self.fam.loc[range, :]
+        return self.fam.iloc[range, :]
 
     def set_columns(self):
         self.fam.columns = ['FID','IID','P','M','SEX','PHENO1']
@@ -74,7 +74,7 @@ class CovReader:
 
     def read_range(self, range):
         self.read()
-        return self.cov.loc[range,:]
+        return self.cov.iloc[range,:]
 
     def set_columns(self):
         self.cov.FID = self.cov.FID.astype(str)
@@ -96,7 +96,7 @@ class BimReader:
 
     def read_range(self, range):
         self.read()
-        return self.bim.loc[range, :]
+        return self.bim.iloc[range, :]
 
     def set_columns(self):
         self.bim.columns = ['CHR','ID','cM','POS','A1','A2']
