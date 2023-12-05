@@ -56,7 +56,8 @@ def redirect_genotype(GT, snp_idx):
 def dropped_info(data, subset, cols):
     data_id = list(zip(*data[cols].to_dict('list').values()))
     subset_id = list(zip(*subset[cols].to_dict('list').values()))
-    dropped_idx = [idx for idx, id in enumerate(data_id) if id not in subset_id]
+    mask = ~np.isin(data_id, subset_id)
+    dropped_idx = np.where(mask)[0]
     return data.iloc[dropped_idx,:]
 
 def update_dropped(prev, update):
@@ -267,7 +268,8 @@ class GWASData:
             snp_idx = list(self.__snp.index)
 
         # Genotype information
-        self.__genotype = self.__genotype[np.ix_(sample_idx, snp_idx)]
+        if (sample_list or snp_list) is not None:  # Don't remove
+            self.__genotype = self.__genotype[np.ix_(sample_idx, snp_idx)]
 
     def impute_covariates(self):
         self.__covariate = impute_cov(self.__covariate)
