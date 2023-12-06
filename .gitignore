@@ -141,23 +141,7 @@ cython_debug/
 *.zip
 .idea
 
-
-hyfed-compensator/hyfed_compensator/log/*
-hyfed-compensator/venv
-
-
-splink-server/hyfed_server/migrations/
-splink-server/splink_server/migrations/
-splink-server/splink_server/result/
-splink-server/.idea
-splink-server/venv
-
-splink-client/.idea
-splink-client/venv
-splink-client/hyfed_client/log/*
-splink-client/splink_client/log/*
-splink-client/splink_client/result/*
-
-splink-webapp/node_modules
+# poetry
+poetry.lock
 
 
