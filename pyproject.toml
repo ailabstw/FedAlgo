@@ -20,6 +20,8 @@ classifiers = [
    "Operating System :: OS Independent",
 ]
 
+include = ["externals"]
+
 [tool.poetry.build]
 script = "build.py"
 generate-setup-file = true
