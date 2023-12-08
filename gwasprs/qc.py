@@ -8,6 +8,8 @@ import numpy.typing as npt
 from .utils import call_bash_cmd
 from .setup import setup_plink2
 from .hwe import read_hardy, cal_hwe_pvalue_vec
+from .reader import FamReader, CovReader
+from .gwasdata import format_cov
 
 
 PLINK2_PATH = setup_plink2()
@@ -110,6 +112,13 @@ def create_filtered_bed(
 
     return out_path
 
+def create_filtered_covariates(filtered_bfile_path, cov_path):
+    fam = FamReader(filtered_bfile_path).read()
+    cov = CovReader(cov_path).read()
+    filtered_cov = format_cov(cov, fam)
+    filtered_cov_path = filtered_bfile_path+'.cov'
+    filtered_cov.to_csv(filtered_cov_path, index=None, sep='\t')
+    return filtered_cov_path
 
 '''
 def ld_prune(bfile_path, out_path, include_snp_list = [], remove_ind_list = []):
