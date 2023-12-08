@@ -2,7 +2,7 @@ import unittest
 import gwasprs
 import gwasprs.linalg as linalg
 import numpy as np
-# from scipy.stats import norm
+import jax
 
 
 class BlockDiagonalTestCase(unittest.TestCase):
@@ -94,8 +94,24 @@ class BlockDiagonalTestCase(unittest.TestCase):
         ])
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
+    def test_mvmul_multiprocess(self):
+        result = linalg.mvmul(self.X, self.y, acceleration="process", n_jobs=2)
+        ans = np.concatenate([
+            self.Xs[0] @ self.y[0:self.dim],
+            self.Xs[1] @ self.y[self.dim:2*self.dim],
+            self.Xs[2] @ self.y[2*self.dim:3*self.dim],
+        ])
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
+
     def test_mmdot(self):
         result = linalg.mmdot(self.X, self.X)
+        ans = [X.T @ X for X in self.Xs]
+
+        for i in range(result.nblocks):
+            np.testing.assert_array_almost_equal(ans[i], result[i], decimal=5)
+
+    def test_mmdot_multiprocess(self):
+        result = linalg.mmdot(self.X, self.X, acceleration="process", n_jobs=2)
         ans = [X.T @ X for X in self.Xs]
 
         for i in range(result.nblocks):
@@ -108,6 +124,18 @@ class BlockDiagonalTestCase(unittest.TestCase):
             np.random.rand(self.dim, 13),
         ]
         result = linalg.matmul(self.X, gwasprs.block.BlockDiagonalMatrix(Ys))
+        ans = [X @ Y for (X, Y) in zip(self.Xs, Ys)]
+
+        for i in range(result.nblocks):
+            np.testing.assert_array_almost_equal(ans[i], result[i], decimal=5)
+
+    def test_matmul_multiprocess(self):
+        Ys = [
+            np.random.rand(self.dim, 7),
+            np.random.rand(self.dim, 11),
+            np.random.rand(self.dim, 13),
+        ]
+        result = linalg.matmul(self.X, gwasprs.block.BlockDiagonalMatrix(Ys), acceleration="process", n_jobs=2)
         ans = [X @ Y for (X, Y) in zip(self.Xs, Ys)]
 
         for i in range(result.nblocks):
