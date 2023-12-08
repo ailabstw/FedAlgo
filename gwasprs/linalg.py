@@ -1,4 +1,5 @@
 import abc
+import multiprocessing as mp
 
 import numpy as np
 import scipy.linalg as slinalg
@@ -43,7 +44,7 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
         return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
 
 
-def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]') -> 'np.ndarray[(1,), np.floating]':
+def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1,), np.floating]':
     """Matrix-vector multiplication
 
     Perform X * y.
@@ -57,13 +58,22 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
     """
     # assert X.ndim == 2 and y.ndim == 1
     if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        return X @ y
+        if acceleration == "process":
+            pool = mp.Pool(n_jobs)
+            results = pool.starmap_async(mvmul, zip(X.blocks, np.split(y, X.nblocks)))
+            pool.close()
+            pool.join()
+            return np.concatenate(results.get())
+        elif acceleration == "pmap":
+            raise NotImplementedError("pmap acceleration is not implemented.")
+        else:
+            return X @ y
     else:
         # fallback
         return jit(vmap(jnp.vdot, (0, None), 0))(X, y)
 
 
-def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]') -> 'np.ndarray[(1, 1), np.floating]':
+def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
     """Matrix-matrix dot product
 
     Perform X.T * Y.
@@ -76,14 +86,23 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     assert X.ndim == Y.ndim == 2
-    if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        return block.BlockDiagonalMatrix([x.T @ y for (x, y) in zip(X.blocks, Y.blocks)])
+    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
+        if acceleration == "process":
+            pool = mp.Pool(n_jobs)
+            results = pool.starmap_async(mmdot, zip(X.blocks, Y.blocks))
+            pool.close()
+            pool.join()
+            return block.BlockDiagonalMatrix(results.get())
+        elif acceleration == "pmap":
+            raise NotImplementedError("pmap acceleration is not implemented.")
+        else:
+            return block.BlockDiagonalMatrix([x.T @ y for (x, y) in zip(X.blocks, Y.blocks)])
     else:
         # fallback
         return jit(vmap(mvmul, (None, 1), 1))(X.T, Y)
 
 
-def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]') -> 'np.ndarray[(1, 1), np.floating]':
+def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
     """Matrix multiplication
 
     Perform X * Y.
@@ -96,8 +115,17 @@ def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.float
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     assert X.ndim == Y.ndim == 2
-    if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        return X @ Y
+    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
+        if acceleration == "process":
+            pool = mp.Pool(n_jobs)
+            results = pool.starmap_async(matmul, zip(X.blocks, Y.blocks))
+            pool.close()
+            pool.join()
+            return block.BlockDiagonalMatrix(results.get())
+        elif acceleration == "pmap":
+            raise NotImplementedError("pmap acceleration is not implemented.")
+        else:
+            return X @ Y
     else:
         # fallback
         return jit(vmap(mvmul, (None, 1), 1))(X, Y)
