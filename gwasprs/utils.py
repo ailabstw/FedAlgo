@@ -6,14 +6,16 @@ import jax
 def jax_cpu_cores():
     return len(jax.devices('cpu'))
 
-def call_bash_cmd(command, *args, **kargs):
-    PopenObj = subprocess.Popen(command,
-                        stdout = subprocess.PIPE,
-                        stderr = subprocess.PIPE,
-                        preexec_fn = os.setsid,
-                        shell = True,
-                        executable = "/bin/bash",
-                        *args, **kargs)
+def bash(command, *args, **kargs):
+    PopenObj = subprocess.Popen(
+        command,
+        stdout = subprocess.PIPE,
+        stderr = subprocess.PIPE,
+        preexec_fn = os.setsid,
+        shell = True,
+        executable = "/bin/bash",
+        *args, **kargs
+    )
     out, err = PopenObj.communicate()
     out = out.decode("utf8").rstrip("\r\n").split("\n")
     err = err.decode("utf8").rstrip("\r\n").split("\n")

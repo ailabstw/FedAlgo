@@ -15,51 +15,52 @@ data_path = os.path.dirname(os.path.realpath(__file__))+'/../data'
 class QcTestCase(unittest.TestCase):
 
     def setUp(self):
-        #self.bed_path = "/mnt/prsdata/Test/Data/DEMO_REG/demo_hg38"
-        self.bed_path = f"{data_path}/test_bfile/hapmap1_100"
-        self.output = "/tmp/qc"
-        self.HET_BIN = 1000
-        self.HET_RANGE = (-0.5, 0.5)
-        self.SAMPLE_COUNT = 8000
+        self.bfile_path = f"{data_path}/test_bfile/hapmap1_100"
+        self.output_path = "/tmp/qc"
+        self.het_bin = 1000
+        self.het_range = (-0.5, 0.5)
+        self.sample_count = 8000
 
-        BIM = BimReader(f"{self.bed_path}").read()
-        FAM = FamReader(f"{self.bed_path}").read()
-        self.snp_list = BIM.loc[BIM.CHR.isin(AUTOSOME_LIST)].ID.to_numpy()
-        self.sample_count = len(FAM.index)
-        self.fid_iid_list = list(zip(FAM.FID.values, FAM.IID.values))
+        bim = BimReader(f"{self.bfile_path}").read()
+        fam = FamReader(f"{self.bfile_path}").read()
+        self.snp_list = bim.loc[bim.CHR.isin(AUTOSOME_LIST)].ID.to_numpy()
+        self.sample_count = len(fam.index)
+        self.fid_iid_list = list(zip(fam.FID.values, fam.IID.values))
 
 
     def test_cal_snp_qc(self):
 
         # edge
-        ALLELE_COUNT, HET_HIST, HET, OBS_CT = cal_qc_client(
-            self.bed_path, self.output, self.snp_list,
-            self.HET_BIN, self.HET_RANGE)
-
-        # agg
-        snp_id = filter_snp(
-            ALLELE_COUNT = ALLELE_COUNT,
-            SNP_ID = self.snp_list,
-            SAMPLE_COUNT =  OBS_CT,
-            save_path = self.output,
-            GENO_QC = 0.1,
-            HWE_QC = 5e-7,
-            MAF_QC = 0.01,
+        allele_count, het_hist, het, n_obs = cal_qc_client(
+            self.bfile_path, self.output_path, self.snp_list,
+            self.het_bin, self.het_range
         )
 
         # agg
-        HET_STD, HET_MEAN = cal_het_sd(HET_HIST, self.HET_RANGE, self.HET_BIN)
+        snp_id = filter_snp(
+            allele_count = allele_count,
+            snp_id = self.snp_list,
+            sample_count =  n_obs,
+            save_path = self.output_path,
+            geno = 0.1,
+            hwe = 5e-7,
+            maf = 0.01,
+        )
+
+        # agg
+        het_std, het_mean = cal_het_sd(het_hist, self.het_range, self.het_bin)
 
         # edge
-        remove_list = filter_ind(HET, HET_MEAN, HET_STD, 5,self.fid_iid_list)
+        remove_list = filter_ind(het, het_mean, het_std, 5, self.fid_iid_list)
 
         # edge
         create_filtered_bed(
-            bfile_path = self.bed_path,
-            out_path = self.output,
-            include_snp_list = snp_id,
-            MIND_QC = 0.05 ,
-            keep_ind_list = self.fid_iid_list)
+            bfile_path = self.bfile_path,
+            filtered_bfile_path = self.output_path,
+            keep_snps = snp_id,
+            mind = 0.05 ,
+            keep_inds = self.fid_iid_list
+        )
 
 
 # cd /yilun/CODE/fed-algo
