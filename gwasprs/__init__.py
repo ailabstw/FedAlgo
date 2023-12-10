@@ -21,7 +21,7 @@ from .regression import (
 )
 from .qc import (
     cal_qc_client, filter_ind, create_filtered_bed,
-    filter_snp, cal_het_sd
+    filter_snp, cal_het_sd, create_filtered_covariates
 )
 from . import aggregations, project, reader, iterator, block
 
