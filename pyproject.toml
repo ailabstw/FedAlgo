@@ -46,6 +46,11 @@ ordered_set = "~4"
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4"
 
+[tool.poetry.group.benchmark]
+
+[tool.poetry.group.benchmark.dependencies]
+pyperf = "^2"
+
 [tool.poetry.group.doc]
 
 [tool.poetry.group.doc.dependencies]
