@@ -85,6 +85,21 @@ class BlockDiagonalTestCase(unittest.TestCase):
         ])
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
+    def test_mvdot_vmap(self):
+        Xs = [
+            jnp.array(np.random.rand(self.dim, 7)),
+            jnp.array(np.random.rand(self.dim, 11)),
+            jnp.array(np.random.rand(self.dim, 13)),
+        ]
+        y = jnp.array(self.y)
+        result = linalg.mvdot(gwasprs.block.BlockDiagonalMatrix(Xs), y)
+        ans = np.concatenate([
+            Xs[0].T @ self.y[0:self.dim],
+            Xs[1].T @ self.y[self.dim:2*self.dim],
+            Xs[2].T @ self.y[2*self.dim:3*self.dim],
+        ])
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
+
     def test_mvmul(self):
         result = linalg.mvmul(self.X, self.y)
         ans = np.concatenate([

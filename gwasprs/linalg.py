@@ -41,7 +41,10 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
         return res
     else:
         # fallback
-        return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
+        if isinstance(X, jax.Array) or isinstance(y, jax.Array):
+            return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
+        else:
+            return X.T @ y
 
 
 def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1,), np.floating]':
