@@ -41,7 +41,10 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
         return res
     else:
         # fallback
-        return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
+        if isinstance(X, jax.Array) or isinstance(y, jax.Array):
+            return jit(vmap(jnp.vdot, (1, None), 0))(X, y)
+        else:
+            return X.T @ y
 
 
 def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1,), np.floating]':
@@ -70,7 +73,10 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
             return X @ y
     else:
         # fallback
-        return jit(vmap(jnp.vdot, (0, None), 0))(X, y)
+        if isinstance(X, jax.Array) or isinstance(y, jax.Array):
+            return jit(vmap(jnp.vdot, (0, None), 0))(X, y)
+        else:
+            return X @ y
 
 
 def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
@@ -99,7 +105,10 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
             return block.BlockDiagonalMatrix([x.T @ y for (x, y) in zip(X.blocks, Y.blocks)])
     else:
         # fallback
-        return jit(vmap(mvmul, (None, 1), 1))(X.T, Y)
+        if isinstance(X, jax.Array) or isinstance(Y, jax.Array):
+            return jit(vmap(mvmul, (None, 1), 1))(X.T, Y)
+        else:
+            return X.T @ Y
 
 
 def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
@@ -128,7 +137,10 @@ def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.float
             return X @ Y
     else:
         # fallback
-        return jit(vmap(mvmul, (None, 1), 1))(X, Y)
+        if isinstance(X, jax.Array) or isinstance(Y, jax.Array):
+            return jit(vmap(mvmul, (None, 1), 1))(X, Y)
+        else:
+            return X @ Y
 
 
 def gen_mvmul(y: np.ndarray):
