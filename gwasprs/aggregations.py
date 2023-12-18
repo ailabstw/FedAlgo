@@ -18,6 +18,8 @@ class Aggregation:
             return None
         elif isinstance(x, list) and (isinstance(x[0], (np.ndarray, np.generic, jax.Array)) or issparse(x[0])):
             return self.aggregate_list_of_array(*xs)
+        elif isinstance(x, list):
+            return self.aggregate_list(*xs)
         elif isinstance(x, int) or isinstance(x, float):
             return self.aggregate_scalars(*xs)
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
@@ -79,6 +81,16 @@ class Intersect(Aggregation):
             intersected.intersection_update(x.tolist())
 
         return np.array(list(intersected))
+
+    def aggregate_list(self, *xs):
+        if len(xs) == 1:
+            return xs[0]
+
+        intersected = OrderedSet(xs[0])
+        for x in xs[1:]:
+            intersected.intersection_update(x)
+
+        return list(intersected)
 
 
 class IsSame(Aggregation):
