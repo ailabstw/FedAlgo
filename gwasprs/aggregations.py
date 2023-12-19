@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import numpy as np
 from scipy.sparse import issparse
 import jax
@@ -19,7 +21,7 @@ class Aggregation:
         elif isinstance(x, list) and (isinstance(x[0], (np.ndarray, np.generic, jax.Array)) or issparse(x[0])):
             return self.aggregate_list_of_array(*xs)
         elif isinstance(x, list):
-            return self.aggregate_list(*xs)
+            return self.aggregate_list_of_list(*xs)
         elif isinstance(x, int) or isinstance(x, float):
             return self.aggregate_scalars(*xs)
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
@@ -29,6 +31,25 @@ class Aggregation:
         else:
             raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray, scipy sparse array or list of np.ndarray")
 
+    @abstractmethod
+    def aggregate_list_of_array(self, *xs):
+        raise NotImplementedError("Abstract aggregation for list of array is not implemented yet")
+
+    @abstractmethod
+    def aggregate_list_of_list(self, *xs):
+        raise NotImplementedError("Abstract aggregation for list is not implemented yet")
+
+    @abstractmethod
+    def aggregate_scalars(self, *xs):
+        raise NotImplementedError("Abstract aggregation for scalars is not implemented yet")
+
+    @abstractmethod
+    def aggregate_arrays(self, *xs):
+        raise NotImplementedError("Abstract aggregation for arrays is not implemented yet")
+
+    @abstractmethod
+    def aggregate_block_diags(self, *xs):
+        raise NotImplementedError("Abstract aggregation for `BlockDiagonalMatrix` is not implemented yet")
 
 
 class SumUp(Aggregation):
@@ -82,7 +103,7 @@ class Intersect(Aggregation):
 
         return np.array(list(intersected))
 
-    def aggregate_list(self, *xs):
+    def aggregate_list_of_list(self, *xs):
         if len(xs) == 1:
             return xs[0]
 
