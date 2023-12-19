@@ -75,6 +75,15 @@ class IntersectTestCase(unittest.TestCase):
         self.B = None
         self.C = None
 
+    def test_intersect_of_list_of_list(self):
+        result = gwasprs.aggregations.Intersect()(
+            [2, 2, 5, 1, 7, 0, 10],
+            [1, 2, 3, 4, 4, 5, 7, 10, 0],
+            [0, 1, 2, 3, 4, 5, 6, 7, 10]
+        )
+        ans = [2, 5, 1, 7, 0, 10]
+        self.assertEqual(ans, result)
+
     def test_intersect_of_numpy_arrays(self):
         result = gwasprs.aggregations.Intersect()(self.A, self.B, self.C)
         ans = np.array([2, 5, 1, 7, 0, 10])
