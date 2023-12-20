@@ -99,7 +99,7 @@ class SNPIterator(NDIterator):
         return self
 
     def __next__(self):
-        if not self.is_end():
+        if not self.iter.is_end():
             return self.increase_step(self.iter.step)
         else:
             raise StopIteration
