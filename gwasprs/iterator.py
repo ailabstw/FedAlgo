@@ -99,13 +99,14 @@ class SNPIterator(NDIterator):
         return self
 
     def __next__(self):
-        if not self.is_end():
-            return self.increase_step(self.iter.step)
-        else:
-            raise StopIteration
-
+        if not self.iter.is_end():
+            range = self.increase_step(self.iter.step)
+            if not self.iter.is_end():
+                return range
+        raise StopIteration
+    
     def is_end(self):
-        return self.sample_iterator.is_end() and self.iter.is_end()
+        return self.iter.is_end()
 
     def reset(self):
         self.iter.reset()
@@ -143,12 +144,13 @@ class SampleIterator(NDIterator):
 
     def __next__(self):
         if not self.iter.is_end():
-            return self.increase_step(self.iter.step)
-        else:
-            raise StopIteration
+            range = self.increase_step(self.iter.step)
+            if not self.iter.is_end():
+                return range
+        raise StopIteration
 
     def is_end(self):
-        return self.snp_iterator.is_end() and self.iter.is_end()
+        return self.iter.is_end()
 
     def reset(self):
         self.iter.reset()
