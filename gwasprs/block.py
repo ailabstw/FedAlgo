@@ -109,7 +109,8 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
     def __matmul__(self, value):
         if isinstance(value, AbstractBlockDiagonalMatrix):
             return BlockDiagonalMatrix([x @ y for (x, y) in zip(self.blocks, value.blocks)])
-        elif isinstance(value, (np.ndarray, np.generic, jax.Array)) and value.ndim == 1:
+        elif isinstance(value, (np.ndarray, np.generic, jax.Array)):
+            assert value.ndim == 1, f"value must be 1-dimensional, got {value.ndim}"
             rowidx = np.cumsum([0] + [shape[0] for shape in self.blockshapes])
             colidx = np.cumsum([0] + [shape[1] for shape in self.blockshapes])
             res = np.empty(rowidx[-1])
