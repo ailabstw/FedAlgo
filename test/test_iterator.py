@@ -7,7 +7,15 @@ import gwasprs
 class IteratorTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.n_SNP = 56
+        """
+        divisible (SNPIterator)
+        divisible and not divisible (SNPIterator.samples)
+        divisible and divisible
+        not divisible (SampleIterator)
+        not divisible and divisible (SampleIterator.snps)
+        not divisible and not divisible
+        """
+        self.n_SNP = 60
         self.n_sample = 79
         self.snp_step = 15
         self.sample_step = 20
@@ -23,21 +31,57 @@ class IteratorTestCase(unittest.TestCase):
 
     def test_SNPIterator(self):
         iter = gwasprs.iterator.SNPIterator(self.n_SNP, step=self.snp_step)
-        self.assertEqual(np.s_[:, 0:self.snp_step], next(iter))
-        self.assertEqual(np.s_[:, self.snp_step:2*self.snp_step], next(iter))
+        for i in range(0, self.n_SNP, self.snp_step):
+            ans = np.s_[:, i:min(i+self.snp_step, self.n_SNP)]
+            result = next(iter)
+            self.assertEqual(ans, result)
 
     def test_SNPIterator_samples(self):
         iter = gwasprs.iterator.SNPIterator(self.n_SNP, step=self.snp_step).samples(self.n_sample, step=self.sample_step)
-        self.assertEqual(np.s_[0:self.sample_step, 0:self.snp_step], next(iter))
-        self.assertEqual(np.s_[self.sample_step:2*self.sample_step, 0:self.snp_step], next(iter))
+        for i in range(0, self.n_SNP, self.snp_step):
+            for j in range(0, self.n_sample, self.sample_step):
+                ans = np.s_[
+                    j:min(j+self.sample_step, self.n_sample),
+                    i:min(i+self.snp_step, self.n_SNP)
+                ]
+                result = next(iter)
+                self.assertEqual(ans, result)
+                
+        iter = gwasprs.iterator.SNPIterator(self.n_SNP, step=self.snp_step).samples(self.n_SNP, step=self.snp_step)
+        for i in range(0, self.n_SNP, self.snp_step):
+            for j in range(0, self.n_SNP, self.snp_step):
+                ans = np.s_[
+                    j:min(j+self.snp_step, self.n_SNP),
+                    i:min(i+self.snp_step, self.n_SNP)
+                ]
+                result = next(iter)
+                self.assertEqual(ans, result)
 
     def test_SampleIterator(self):
         iter = gwasprs.iterator.SampleIterator(self.n_sample, step=self.sample_step)
-        self.assertEqual(np.s_[0:self.sample_step, :], next(iter))
-        self.assertEqual(np.s_[self.sample_step:2*self.sample_step, :], next(iter))
+        for i in range(0, self.n_sample, self.sample_step):
+            ans = np.s_[i:min(i+self.sample_step, self.n_sample), :]
+            result = next(iter)
+            self.assertEqual(ans, result)
 
     def test_SampleIterator_snps(self):
         iter = gwasprs.iterator.SampleIterator(self.n_sample, step=self.sample_step).snps(self.n_SNP, step=self.snp_step)
-        self.assertEqual(np.s_[0:self.sample_step, 0:self.snp_step], next(iter))
-        self.assertEqual(np.s_[0:self.sample_step, self.snp_step:2*self.snp_step], next(iter))
+        for i in range(0, self.n_sample, self.sample_step):
+            for j in range(0, self.n_SNP, self.snp_step):
+                ans = np.s_[
+                    i:min(i+self.sample_step, self.n_sample),
+                    j:min(j+self.snp_step, self.n_SNP)
+                ]
+                result = next(iter)
+                self.assertEqual(ans, result)
 
+        iter = gwasprs.iterator.SampleIterator(self.n_sample, step=self.sample_step).snps(self.n_sample, step=self.sample_step)
+        for i in range(0, self.n_sample, self.sample_step):
+            for j in range(0, self.n_sample, self.sample_step):
+                ans = np.s_[
+                    i:min(i+self.sample_step, self.n_sample),
+                    j:min(j+self.sample_step, self.n_sample)
+                ]
+                result = next(iter)
+                print(result)
+                self.assertEqual(ans, result)

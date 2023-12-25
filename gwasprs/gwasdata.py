@@ -230,13 +230,13 @@ class GWASData:
         self.drop_missing_samples()
         self.add_unique_snp_id()
 
-    def custom(self, drop_missing_samples=True, **kwargs):
+    def custom(self, **kwargs):
         self.subset(**kwargs)
 
         if kwargs.get('impute_cov') is True:
             self.impute_covariates()
 
-        if drop_missing_samples:
+        if kwargs.get('drop_missing_samples', True):
             self.drop_missing_samples()
 
         if kwargs.get('add_unique_snp_id') is True:

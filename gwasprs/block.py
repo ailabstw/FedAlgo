@@ -120,6 +120,9 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
 
     def toarray(self):
         return block_diag(*self.blocks)
+    
+    def tolist(self):
+        return [blk.tolist() for blk in self.blocks]
 
     def diagonal(self):
         return np.concatenate([blk.diagonal() for blk in self.blocks])

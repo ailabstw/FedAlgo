@@ -84,14 +84,16 @@ class SNPIterator(NDIterator):
 
         More explicit usage can be found in unittest.
         """
-        if self.sample_iterator.is_end():
-            self.sample_iterator.reset()
-            self.iter.increase_step(step)
-
         slc = self.iter.get_step(step)
         range = np.s_[next(self.sample_iterator), slc]
+        
         if isinstance(self.sample_iterator, FullIterator):
             self.iter.increase_step(step)
+            
+        elif self.sample_iterator.is_end():
+            self.sample_iterator.reset()
+            self.iter.increase_step(step)
+            
         return range
 
     def samples(self, n_sample, step: int = 1):
@@ -99,10 +101,8 @@ class SNPIterator(NDIterator):
         return self
 
     def __next__(self):
-        if not self.iter.is_end():
-            range = self.increase_step(self.iter.step)
-            if not self.iter.is_end():
-                return range
+        if not self.is_end():
+            return self.increase_step(self.iter.step)
         raise StopIteration
     
     def is_end(self):
@@ -128,14 +128,16 @@ class SampleIterator(NDIterator):
 
         More explicit usage can be found in unittest.
         """
-        if self.snp_iterator.is_end():
-            self.snp_iterator.reset()
-            self.iter.increase_step(step)
-
         slc = self.iter.get_step(step)
         range = np.s_[slc, next(self.snp_iterator)]
+        
         if isinstance(self.snp_iterator, FullIterator):
             self.iter.increase_step(step)
+
+        elif self.snp_iterator.is_end():
+            self.snp_iterator.reset()
+            self.iter.increase_step(step)
+            
         return range
 
     def snps(self, n_SNP, step: int = 1):
@@ -143,10 +145,8 @@ class SampleIterator(NDIterator):
         return self
 
     def __next__(self):
-        if not self.iter.is_end():
-            range = self.increase_step(self.iter.step)
-            if not self.iter.is_end():
-                return range
+        if not self.is_end():
+            return self.increase_step(self.iter.step)
         raise StopIteration
 
     def is_end(self):
