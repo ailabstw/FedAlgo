@@ -83,5 +83,4 @@ class IteratorTestCase(unittest.TestCase):
                     j:min(j+self.sample_step, self.n_sample)
                 ]
                 result = next(iter)
-                print(result)
                 self.assertEqual(ans, result)
