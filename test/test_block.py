@@ -2,6 +2,7 @@ import unittest
 import gwasprs
 import gwasprs.linalg as linalg
 import numpy as np
+from scipy.linalg import block_diag
 import jax.numpy as jnp
 
 
@@ -63,6 +64,37 @@ class BlockDiagonalTestCase(unittest.TestCase):
             np.testing.assert_array_almost_equal(blk, result[i], decimal=5)
         for (i, blk) in enumerate(Y):
             np.testing.assert_array_almost_equal(blk, result[i + len(self.Xs)], decimal=5)
+            
+    def test_fromlist(self):
+        ls = [x.tolist() for x in self.Xs]
+        result = gwasprs.block.BlockDiagonalMatrix.fromlist(ls)
+        for (i, blk) in enumerate(result):
+            np.testing.assert_array_equal(self.Xs[i], blk)
+    
+    def test_fromdense(self):
+        n_block = 4
+        Xs = [np.random.randn(10, self.dim) for _ in range(n_block)]
+        result = gwasprs.block.BlockDiagonalMatrix.fromdense(block_diag(*Xs), n_block)
+        for (i, blk) in enumerate(result):
+            np.testing.assert_array_almost_equal(Xs[i], blk)
+    
+    def test_fromindex(self):
+        indices = [
+            [[0, 2],
+             [0, 3]],
+            [[2, 6],
+             [3, 7]],
+            [[6, 10],
+             [7, 13]]
+        ]
+        Xs = []
+        # Create matrices with unequal sizes
+        for i in range(len(indices)):
+            sizes = (end-start for start, end in indices[i])
+            Xs.append(np.random.randn(*sizes))
+        result = gwasprs.block.BlockDiagonalMatrix.fromindex(block_diag(*Xs), indices)
+        for (i, blk) in enumerate(result):
+            np.testing.assert_array_almost_equal(Xs[i], blk)
 
     def test_add(self):
         result = self.X + self.Y

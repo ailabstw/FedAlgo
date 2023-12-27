@@ -88,6 +88,53 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
         else:
             raise Exception(f"cannot append objects of type {type(x)}")
 
+    @classmethod
+    def fromlist(cls, ls, array=np.array):
+        return cls([array(x) for x in ls])
+    
+    @classmethod
+    def fromdense(cls, X, nblocks):
+        steps = []
+        # Check x sizes equal
+        for i in range(X.ndim):
+            step = X.shape[i]/nblocks
+            assert int(step) == step,\
+                f"Only equal-sized matrices are supported; \
+                found unequal sizes at the {i}-dimensional axis. \
+                Please use BlockDiagonalMatrix.fromindex(X, indices)."
+            steps.append(int(step))
+        X_blocks = []
+        for i in range(nblocks):
+            slices = tuple(slice(i*s, (i+1)*s) for s in steps)
+            X_blocks.append(X[slices])
+        return cls(X_blocks)
+
+    @classmethod
+    def fromindex(cls, X, indices):
+        """
+        Form a BlockDiagonalMatrix from the provided indices.
+
+        Parameters
+        ----------
+            X : np.ndarray, jnp.array
+                Dense matrix.
+            indices : List[List[List[int, int]]]
+                The indices should be three-dimensional and represented as (n_blocks, n_dim, 2).
+                The last dimension should record the start and end indices to form start:end.
+        Returns
+        -------
+            BlockDiagonalMatrix
+        """
+        indices = np.array(indices)
+        assert indices.ndim == 3, f"indices must be three-dimensional, got {indices.ndim}"
+        X_blocks = []
+        ndim = indices.shape[1]
+        for i in range(indices.shape[0]):
+            # Get the slices for each dimension of the block
+            slices = tuple(slice(indices[i][d][0], indices[i][d][1]) for d in range(ndim))
+            X_blocks.append(X[slices])
+        return cls(X_blocks)
+
     def __iter__(self):
         return BlockDiagonalMatrixIterator(self)
 
