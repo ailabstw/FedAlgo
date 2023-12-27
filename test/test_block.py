@@ -1,8 +1,8 @@
 import unittest
 import gwasprs
 import gwasprs.linalg as linalg
+from gwasprs.block import block_diag
 import numpy as np
-from scipy.linalg import block_diag
 import jax.numpy as jnp
 
 
@@ -81,11 +81,14 @@ class BlockDiagonalTestCase(unittest.TestCase):
     def test_fromindex(self):
         indices = [
             [[0, 2],
-             [0, 3]],
+             [0, 3],
+             [0, 4]],
             [[2, 6],
-             [3, 7]],
+             [3, 7],
+             [4, 10]],
             [[6, 10],
-             [7, 13]]
+             [7, 13],
+             [10, 13]]
         ]
         Xs = []
         # Create matrices with unequal sizes
@@ -226,3 +229,37 @@ class BlockDiagonalTestCase(unittest.TestCase):
 
         for (i, blk) in enumerate(result):
             np.testing.assert_array_almost_equal(np.linalg.inv(cov[i]), blk, decimal=5)
+
+class Testblockdiag(unittest.TestCase):
+    def setUp(self):
+        self.dim = 5
+        self.Xs_2d = [
+            np.random.randn(7, self.dim),
+            np.random.randn(13, self.dim),
+            np.random.randn(15, self.dim)
+        ]
+        self.Xs_3d = [
+            np.random.randn(7, 7, self.dim),
+            np.random.randn(13, 13, self.dim),
+            np.random.randn(15, 15, self.dim)
+        ]
+    
+    def test_blockdiag(self):
+        result = block_diag(*self.Xs_2d)
+        start = np.zeros(2, dtype='int')
+        for x in self.Xs_2d:
+            slices = tuple(slice(start[i], start[i]+x.shape[i]) for i in range(2))
+            np.testing.assert_array_equal(x, result[slices])
+            result[slices] = 0
+            start += np.array(x.shape)
+        np.testing.assert_array_equal(np.zeros(result.shape), result)
+            
+    def test_blockdiag_nd(self):
+        result = block_diag(*self.Xs_3d)
+        start = np.zeros(3, dtype='int')
+        for x in self.Xs_3d:
+            slices = tuple(slice(start[i], start[i] + x.shape[i]) for i in range(3))
+            np.testing.assert_array_equal(x, result[slices])
+            result[slices] = 0
+            start += np.array(x.shape)
+        np.testing.assert_array_equal(np.zeros(result.shape), result)

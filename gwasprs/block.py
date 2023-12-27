@@ -4,7 +4,6 @@ import copy
 
 import numpy as np
 from scipy.sparse import issparse
-from scipy.linalg import block_diag
 import jax
 
 from . import mask, array
@@ -173,3 +172,22 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
 
     def diagonal(self):
         return np.concatenate([blk.diagonal() for blk in self.blocks])
+    
+def block_diag(*arrs):
+    if arrs == ():
+        arrs = ([],)
+
+    assert all([a.ndim == arrs[0].ndim for a in arrs]),\
+        "All arrays must have the same number of dimensions."
+    ndim = arrs[0].ndim
+
+    shapes = np.array([a.shape for a in arrs])
+    out_dtype = np.result_type(*[a.dtype for a in arrs])
+    out = np.zeros(np.sum(shapes, axis=0), dtype=out_dtype)
+
+    idx = np.zeros(ndim, dtype='int')
+    for i, sh in enumerate(shapes):
+        slices = tuple(slice(idx[j], idx[j]+sh[j]) for j in range(ndim))
+        out[slices] = arrs[i]
+        idx += np.array(sh)
+    return out
