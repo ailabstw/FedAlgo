@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.5]
+
+### Added
+
+- `BlockDiagonalMatrix` supports initializing from list and dense matrix, `fromdense`, `fromlist` and `fromindex`.
+
+### Fixed
+
+- Replace `scipy.linalg.block_diag` with self-defining `block_diag` supporting n-dimensional arrays.
+
 ## [0.18.4]
 
 ### Added
