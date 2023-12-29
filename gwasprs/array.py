@@ -7,12 +7,35 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import random
 
-from . import linalg
+from . import linalg, iterator
 
 
 Str1DArray = NewType("Str1DArray", npt.NDArray[np.byte])
 IntNDArray = NewType("IntNDArray", npt.NDArray[np.int32])
 FloatNDArray = NewType("FloatNDArray", npt.NDArray[np.float32])
+
+
+def colons(n):
+    return tuple(slice(None) for _ in range(n))
+
+
+class ArrayIterator:
+
+    def __init__(self, arr, axis=0) -> None:
+        self.arr = arr
+        self.axis = axis
+        self.iter = iterator.IndexIterator(arr.shape[axis])
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self.iter.is_end():
+            slc = next(self.iter)
+            idx = tuple([*colons(self.axis), slc])
+            return self.arr[idx]
+        else:
+            raise StopIteration
 
 
 def concat(xs, axis=1):
