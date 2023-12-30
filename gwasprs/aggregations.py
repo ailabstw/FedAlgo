@@ -3,6 +3,7 @@ from abc import abstractmethod
 import numpy as np
 from scipy.sparse import issparse
 import jax
+import jax.numpy as jnp
 from ordered_set import OrderedSet
 
 from . import block
@@ -25,6 +26,8 @@ class Aggregation:
         elif isinstance(x, int) or isinstance(x, float):
             return self.aggregate_scalars(*xs)
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
+            x_types = set(type(a) for a in xs)
+            assert len(x_types) == 1, f"All array types must be consistent, but got {x_types}."
             return self.aggregate_arrays(*xs)
         elif isinstance(x, block.BlockDiagonalMatrix):
             return self.aggregate_block_diags(*xs)
@@ -100,8 +103,15 @@ class Intersect(Aggregation):
         intersected = OrderedSet(xs[0].tolist())
         for x in xs[1:]:
             intersected.intersection_update(x.tolist())
-
-        return np.array(list(intersected))
+        
+        if isinstance(xs[0], (np.ndarray, np.generic)):
+            return np.array(list(intersected))
+        elif isinstance(xs[0], jax.Array):
+            return jnp.array(list(intersected))
+        elif issparse(xs[0]):
+            raise NotImplementedError
+        else:
+            raise TypeError("Unsupported array type.")
 
     def aggregate_list_of_list(self, *xs):
         if len(xs) == 1:
