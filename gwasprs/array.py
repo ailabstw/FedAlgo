@@ -54,17 +54,24 @@ def concat(xs, axis=1):
             raise ValueError("Only support axis 0 and 1 for sparse arrays.")
     else:
         raise TypeError(f"Unsupported array type.")
-        
 
 
 def impute_with(X, val=0.0):
-    return jnp.nan_to_num(X, copy=True, nan=val, posinf=None, neginf=None)
+    if isinstance(X, (np.ndarray, np.generic)):
+        return np.nan_to_num(X, copy=True, nan=val, posinf=None, neginf=None)
+    elif isinstance(X, jax.Array):
+        return jnp.nan_to_num(X, copy=True, nan=val, posinf=None, neginf=None)
+    else:
+        raise TypeError("Unsupported array type.")
 
 
 def expand_to_2dim(x, axis=-1):
-    x = jnp.array(x)
-    if jnp.ndim(x) == 1:
+    if isinstance(x, (np.ndarray, np.generic)) and x.ndim == 1:
+        x = np.expand_dims(x, axis)
+    elif isinstance(x, jax.Array) and x.ndim == 1:
         x = jnp.expand_dims(x, axis)
+    else:
+        raise TypeError("Unsupported array type.")
     return x
 
 
