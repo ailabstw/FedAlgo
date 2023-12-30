@@ -3,6 +3,8 @@ from typing import NewType
 import numpy as np
 import numpy.typing as npt
 from scipy.stats import ortho_group
+from scipy.sparse import issparse, hstack, vstack
+import jax
 from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import random
@@ -39,7 +41,20 @@ class ArrayIterator:
 
 
 def concat(xs, axis=1):
-    return jnp.concatenate(xs, axis=axis)
+    if isinstance(xs[0], (np.ndarray, np.generic)):
+        return np.concatenate(xs, axis=axis)
+    elif isinstance(xs[0], jax.Array):
+        return jnp.concatenate(xs, axis=axis)
+    elif issparse(xs[0]):
+        if axis == 0:
+            return vstack(xs)
+        elif axis == 1:
+            return hstack(xs)
+        else:
+            raise ValueError("Only support axis 0 and 1 for sparse arrays.")
+    else:
+        raise TypeError(f"Unsupported array type.")
+        
 
 
 def impute_with(X, val=0.0):
