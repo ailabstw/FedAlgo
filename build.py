@@ -14,7 +14,7 @@ MODE = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 def platform_plink2_url():
     platform = sys.platform
     if platform == "linux" or platform == "linux2":
-        return "https://s3.amazonaws.com/plink2-assets/alpha4/plink2_linux_avx2_20230621.zip"
+        return "https://s3.amazonaws.com/plink2-assets/alpha5/plink2_linux_avx2_20240105.zip"
     elif platform == "darwin":
         return "https://s3.amazonaws.com/plink2-assets/alpha4/plink2_mac_20230621.zip"
     elif platform == "win32":
