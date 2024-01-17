@@ -1,5 +1,6 @@
 from .gwasdata import (
-    GWASData, GwasDataLoader, GwasSnpIterator
+    GWASData, GwasDataLoader, GwasSnpIterator,
+    get_qc_metadata
 )
 from .array import (
     concat, impute_with,
