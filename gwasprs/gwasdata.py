@@ -24,31 +24,31 @@ def get_mask_idx(df):
     mask_miss2 = (df == (-9 or -9.0)).any(axis=1)
     return df[mask_miss1 | mask_miss2].index
 
-def impute_cov(COV):
+def impute_cov(cov):
     # nanmean imputation
-    col_means = COV.iloc[:,2:].mean()
-    COV.fillna(col_means, inplace=True)
-    return COV
+    col_means = cov.iloc[:,2:].mean()
+    cov.fillna(col_means, inplace=True)
+    return cov
 
-def create_unique_snp_id(BIM, to_byte=True, to_dict=False):
+def create_unique_snp_id(bim, to_byte=True, to_dict=False):
     """
     Create the unique ID as CHR:POS:A1:A2
     If the A1 and A2 are switched, record the SNP index for adjusting the genptype values (0 > 2, 2 > 0).
     """
     unique_id, sorted_snp_idx = [], []
-    BIM = BIM.reset_index(drop=True)
-    for line in BIM.iterrows():
-        CHR = str(line[1]['CHR'])
-        POS = str(line[1]['POS'])
-        ALLELE = [str(line[1]['A1'])[:23], str(line[1]['A2'])[:23]]
-        ALLELE_sorted = sorted(ALLELE)
-        unique_id.append(f"{CHR}:{POS}:{ALLELE_sorted[0]}:{ALLELE_sorted[1]}")
-        if ALLELE != ALLELE_sorted:
+    bim = bim.reset_index(drop=True)
+    for line in bim.iterrows():
+        chr = str(line[1]['CHR'])
+        pos = str(line[1]['POS'])
+        allele = [str(line[1]['A1'])[:23], str(line[1]['A2'])[:23]]
+        allele_sorted = sorted(allele)
+        unique_id.append(f"{chr}:{pos}:{allele_sorted[0]}:{allele_sorted[1]}")
+        if allele != allele_sorted:
             sorted_snp_idx.append(line[0])
     if to_byte:
         unique_id = np.array(unique_id, dtype="S")
     if to_dict:
-        unique_id = dict(zip(unique_id, BIM.ID))
+        unique_id = dict(zip(unique_id, bim.ID))
     return unique_id, sorted_snp_idx
 
 def redirect_genotype(GT, snp_idx):
@@ -61,9 +61,6 @@ def dropped_info(data, subset, cols):
     mask = ~np.isin(data_id, subset_id)
     dropped_idx = np.where(mask)[0]
     return data.iloc[dropped_idx,:]
-
-def update_dropped(prev, update):
-    return pd.concat([prev, update]).reset_index(drop=True)
 
 def subset_samples(sample_list:(str, list, tuple), data, order=False, list_is_idx=False):
     """
@@ -149,11 +146,11 @@ def create_snp_table(snp_id_list, rs_id_list):
     """
     Create the mapping table that unique IDs can be mapped to the rsIDs.
     """
-    snp_id_table = {}
-    for i in range(len(snp_id_list)):
-        snp_id = snp_id_list[i]
-        if snp_id not in snp_id_table:
-            snp_id_table.setdefault(snp_id, rs_id_list[i])
+    snp_id_list, idx = np.unique(snp_id_list, return_index=True)
+    recover_order = np.argsort(idx)
+    snp_id_list = snp_id_list[recover_order]
+    rs_id_list = np.array(rs_id_list)[idx][recover_order]
+    snp_id_table = dict(zip(snp_id_list, rs_id_list))
 
     return list(snp_id_table.keys()), snp_id_table
 
@@ -371,6 +368,21 @@ def format_sample_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_nam
     else:
         cov = None
     return fam, cov
+
+
+def get_qc_metadata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1', autosome_only=True):
+    # SNPs
+    bim = BimReader(bfile_path).read()
+    if autosome_only:
+        bim = bim[bim.CHR.isin(AUTOSOME_LIST)]
+    autosome_snp_id, _ = create_unique_snp_id(bim, to_byte=False, to_dict=False)
+    autosome_rsID = list(bim.ID)
+    autosome_snp_list, autosome_snp_table = create_snp_table(autosome_snp_id, autosome_rsID)
+    
+    # Samples
+    fam, _ = format_sample_metadata(bfile_path, cov_path, pheno_path, pheno_name)
+    sample_id = list(zip(fam.FID, fam.IID))
+    return autosome_snp_list, sample_id, autosome_snp_table
 
 
 def read_gwasdata(bfile_path, cov_path=None, pheno_path=None, pheno_name='PHENO1'):
