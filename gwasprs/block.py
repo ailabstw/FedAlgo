@@ -138,10 +138,11 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
         return BlockDiagonalMatrixIterator(self)
 
     def __getitem__(self, key):
-        if key < self.nblocks:
+        try:
             return self.__blocks[key]
-        else:
-            raise IndexError
+        
+        except IndexError:
+            raise IndexError('Block index out of range.')
 
     def __add__(self, value):
         if isinstance(value, (np.ndarray, np.generic, jax.Array)):
