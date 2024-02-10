@@ -988,10 +988,10 @@ def batched_logistic_residual(y, pred_y):
 
     Args:
         y (np.ndarray[(1, 1), np.floating]): Batched vector.
-        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+        pred_y (np.ndarray[(1, 1), np.floating]): Batched vector.
 
     Returns:
-        np.ndarray[(1, 1, 1), np.floating]: Batched vector.
+        np.ndarray[(1, 1), np.floating]: Batched vector.
     """
     return vmap(logistic_residual, (0,0), 0)(y, pred_y)
 
@@ -1003,10 +1003,10 @@ def batched_logistic_gradient(X, residual):
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
-        residual (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+        residual (np.ndarray[(1, 1), np.floating]): Batched vector.
 
     Returns:
-        np.ndarray[(1, 1, 1), np.floating]: Batched vector.
+        np.ndarray[(1, 1), np.floating]: Batched vector.
     """
     return vmap(logistic_gradient, (0,0), 0)(X, residual)
 
@@ -1018,7 +1018,7 @@ def batched_logistic_hessian(X, pred_y):
 
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
-        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+        pred_y (np.ndarray[(1, 1), np.floating]): Batched vector.
 
     Returns:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
@@ -1037,7 +1037,7 @@ def batched_logistic_loglikelihood(X, y, pred_y):
     Args:
         X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
         y (np.ndarray[(1, 1), np.floating]): Batched vector.
-        pred_y (np.ndarray[(1, 1, 1), np.floating]): Batched vector.
+        pred_y (np.ndarray[(1, 1), np.floating]): Batched vector.
 
     Returns:
         np.ndarray[(1,), np.floating]: Batched vector.

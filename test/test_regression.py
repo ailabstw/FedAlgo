@@ -166,7 +166,6 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         self.model.acceleration = 'pmap'
         pmap_result = self.model.predict(self.X)
         predicted_y = 1 / (1 + np.exp(-linalg.batched_mvmul(self.X, self.beta)))
-        predicted_y = np.expand_dims(predicted_y, -1)
         np.testing.assert_array_almost_equal(predicted_y, single_result, decimal=5)
         np.testing.assert_array_almost_equal(predicted_y, pmap_result, decimal=5)
 
@@ -176,7 +175,7 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
 
     def test_residual(self):
         result = self.model.residual(self.X, self.y)
-        ans = np.expand_dims(self.y, -1) - self.model.predict(self.X)
+        ans = self.y - self.model.predict(self.X)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_gradient(self):

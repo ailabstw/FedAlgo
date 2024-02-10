@@ -303,8 +303,7 @@ class BatchedLogisticRegression(LinearModel):
 
     def predict(self, X):
         if self.acceleration == "single":
-            predicted_y = 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
-            return jnp.expand_dims(predicted_y, -1)
+            return 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
 
         elif self.acceleration == "pmap":
             pmap_func = pmap(linalg.batched_logistic_predict, in_axes=(0,0), out_axes=0)
@@ -320,7 +319,7 @@ class BatchedLogisticRegression(LinearModel):
                 b = self.__beta[(minibatch*ncores):, :]
                 Z = linalg.batched_logistic_predict(B, b)
                 Y = np.concatenate((Y, Z), axis=0)
-            return jnp.expand_dims(Y, -1)
+            return Y
         else:
             raise ValueError(f"{self.acceleration} acceleration is not supported.")
 
