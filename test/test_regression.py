@@ -67,9 +67,8 @@ class LogisticRegressionTestCase(unittest.TestCase):
 
     def test_predict(self):
         result = self.model.predict(self.X)
-        predicted_y = 1 / (1 + np.exp(-np.dot(self.X, self.beta)))
-        predicted_y = np.expand_dims(predicted_y, -1)
-        np.testing.assert_array_almost_equal(predicted_y, result, decimal=5)
+        ans = 1 / (1 + np.exp(-np.dot(self.X, self.beta)))
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_fit(self):
         self.model.fit(self.X, self.y)
@@ -77,13 +76,13 @@ class LogisticRegressionTestCase(unittest.TestCase):
 
     def test_residual(self):
         result = self.model.residual(self.X, self.y)
-        ans = np.expand_dims(self.y, -1) - self.model.predict(self.X)
+        ans = self.y - self.model.predict(self.X)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_gradient(self):
         result = self.model.gradient(self.X, self.y)
         ans = np.dot(self.X.T, self.model.residual(self.X, self.y))
-        np.testing.assert_array_almost_equal(ans, np.expand_dims(result, -1), decimal=5)
+        np.testing.assert_array_almost_equal(ans, result, decimal=5)
 
     def test_hessian(self):
         pass

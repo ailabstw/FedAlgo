@@ -272,8 +272,7 @@ class LogisticRegression(LinearModel):
         self.__beta = beta
 
     def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
-        predicted_y = linalg.logistic_predict(X, self.__beta)
-        return jnp.expand_dims(predicted_y, -1)
+        return linalg.logistic_predict(X, self.__beta)
 
     def fit(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         grad = self.gradient(X, y)
@@ -281,7 +280,7 @@ class LogisticRegression(LinearModel):
         self.__beta = self.beta(grad, H)
 
     def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        return jnp.expand_dims(y, -1) - self.predict(X)
+        return y - self.predict(X)
 
     def gradient(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
         return linalg.mvmul(X.T, self.residual(X, y))
@@ -294,7 +293,7 @@ class LogisticRegression(LinearModel):
 
     def beta(self, gradient, hessian, solver=linalg.CholeskySolver()):
         # solver calculates H^-1 grad in faster way
-        return jnp.expand_dims(self.__beta, -1) + solver(hessian, gradient)
+        return self.__beta + solver(hessian, gradient)
 
 
 class BatchedLogisticRegression(LinearModel):

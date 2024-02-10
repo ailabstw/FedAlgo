@@ -913,7 +913,7 @@ def logistic_residual(y, pred_y):
     Returns:
         np.ndarray[(1, 1), np.floating]: Vector.
     """
-    return jnp.expand_dims(y, -1) - pred_y
+    return y - pred_y
 
 @jit
 def logistic_gradient(X, residual):
