@@ -289,7 +289,7 @@ class LogisticRegression(LinearModel):
         return linalg.logistic_hessian(X, self.predict(X))
 
     def loglikelihood(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
-        return linalg.logistic_loglikelihood(X, self.predict(X), y)
+        return linalg.logistic_loglikelihood(y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.CholeskySolver()):
         # solver calculates H^-1 grad in faster way
@@ -338,7 +338,7 @@ class BatchedLogisticRegression(LinearModel):
         return linalg.batched_logistic_hessian(X, self.predict(X))
 
     def loglikelihood(self, X, y):
-        return linalg.batched_logistic_loglikelihood(X, y, self.predict(X))
+        return linalg.batched_logistic_loglikelihood(y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.BatchedCholeskySolver()):
         try:

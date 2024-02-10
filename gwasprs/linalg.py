@@ -946,7 +946,7 @@ def logistic_hessian(X, pred_y):
     return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
 
 @jit
-def logistic_loglikelihood(X, y, pred_y):
+def logistic_loglikelihood(y, pred_y):
     """Logistic log likelihood estimation
 
     Perform SUM(
@@ -955,7 +955,6 @@ def logistic_loglikelihood(X, y, pred_y):
     )
 
     Args:
-        X (np.ndarray[(1, 1), np.floating]): Matrix.
         y (np.ndarray[(1,), np.floating]): Vector.
         pred_y (np.ndarray[(1, 1), np.floating]): Vector.
 
@@ -1026,7 +1025,7 @@ def batched_logistic_hessian(X, pred_y):
     return vmap(logistic_hessian, (0,0), 0)(X, pred_y)
 
 @jit
-def batched_logistic_loglikelihood(X, y, pred_y):
+def batched_logistic_loglikelihood(y, pred_y):
     """Batched logistic log likelihood estimation
 
     Perform SUM(
@@ -1035,14 +1034,13 @@ def batched_logistic_loglikelihood(X, y, pred_y):
     )
 
     Args:
-        X (np.ndarray[(1, 1, 1), np.floating]): Batched matrix.
         y (np.ndarray[(1, 1), np.floating]): Batched vector.
         pred_y (np.ndarray[(1, 1), np.floating]): Batched vector.
 
     Returns:
         np.ndarray[(1,), np.floating]: Batched vector.
     """
-    return vmap(logistic_loglikelihood, (0,0,0), 0)(X, y, pred_y)
+    return vmap(logistic_loglikelihood, (0,0), 0)(y, pred_y)
 
 
 
