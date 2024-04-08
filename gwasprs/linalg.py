@@ -459,9 +459,11 @@ def orthonormalize(M):
 
     Return:
         (np.ndarray[(1,1), np.floating]) : orthonormalized matrix (m, k1)
+        (np.ndarray[(1,), np.floating]) : singular values        
     """
-    M, _ = jsp.linalg.qr(M, mode='economic')
-    return M
+    M, S = jsp.linalg.qr(M, mode='economic')
+    S = abs(jnp.diag(S))
+    return M, S
 
 
 def update_local_V(A, U):
