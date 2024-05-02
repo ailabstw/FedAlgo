@@ -75,8 +75,6 @@ class GWASDataIteratorTestCase(unittest.TestCase):
         self.n_sample = self.bedreader.n_sample
         self.snp_default_step = 15
         self.sample_default_step = 11
-        self.sample_step_list = [12, 10, 8, 20, 11] # 61
-        self.snp_step_list = [23, 17, 2, 11, 14, 34] # 101
 
         self.phenotype = gwasprs.reader.FamReader(bfile_path).read()
         self.cov = gwasprs.reader.CovReader(cov_path).read()
@@ -94,6 +92,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      style="sample",
                                                      sample_step=self.sample_default_step)
 
+        count = 0
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
             snp = self.snp
@@ -104,6 +103,9 @@ class GWASDataIteratorTestCase(unittest.TestCase):
             pd.testing.assert_frame_equal(ans.snp, result.snp)
             pd.testing.assert_frame_equal(ans.phenotype, result.phenotype)
             self.assertEqual(ans, result)
+            count += 1
+            
+        assert count == len(dataiter)
 
     def test_iterate_snp(self):
         idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step)
@@ -111,16 +113,20 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      style="snp",
                                                      snp_step=self.snp_default_step)
 
-        # for idx, result in zip(idx_iter, dataiter):
-        #     genotype = self.genotype[idx]
-        #     snp = self.snp.loc[idx[1]]
-        #     phenotype = self.phenotype
-        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
+        count = 0
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp.iloc[idx[1]]
+            phenotype = self.phenotype
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
-        #     np.array_equal(ans.genotype, result.genotype, equal_nan=True)
-        #     pd.testing.assert_frame_equal(ans.snp, result.snp)
-        #     pd.testing.assert_frame_equal(ans.phenotype, result.phenotype)
-        #     self.assertEqual(ans, result)
+            np.array_equal(ans.genotype, result.genotype, equal_nan=True)
+            pd.testing.assert_frame_equal(ans.snp, result.snp)
+            pd.testing.assert_frame_equal(ans.phenotype, result.phenotype)
+            self.assertEqual(ans, result)
+            count += 1
+            
+        assert count == len(dataiter)
 
     def test_iterate_sample_snp(self):
         idx_iter = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step).snps(self.n_SNP, self.snp_default_step)
@@ -129,6 +135,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      snp_step=self.snp_default_step,
                                                      sample_step=self.sample_default_step)
 
+        count = 0
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
             snp = self.snp.iloc[idx[1]]
@@ -136,6 +143,9 @@ class GWASDataIteratorTestCase(unittest.TestCase):
             ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
             self.assertEqual(ans, result)
+            count += 1
+            
+        assert count == len(dataiter)
 
     def test_iterate_snp_sample(self):
         idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step).samples(self.n_sample, self.sample_default_step)
@@ -144,13 +154,17 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      snp_step=self.snp_default_step,
                                                      sample_step=self.sample_default_step)
 
-        # for idx, result in zip(idx_iter, dataiter):
-        #     genotype = self.genotype[idx]
-        #     snp = self.snp.loc[idx[1]]
-        #     phenotype = self.phenotype.loc[idx[0]]
-        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
+        count = 0
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp.iloc[idx[1]]
+            phenotype = self.phenotype.iloc[idx[0]]
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, None)
 
-        #     self.assertEqual(ans, result)
+            self.assertEqual(ans, result)
+            count += 1
+        
+        assert count == len(dataiter)
 
     def test_iterate_sample_with_cov(self):
         idx_iter = gwasprs.gwasdata.SampleIterator(self.n_sample, self.sample_default_step)
@@ -158,6 +172,7 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      style="sample",
                                                      sample_step=self.sample_default_step)
 
+        count = 0
         for idx, result in zip(idx_iter, dataiter):
             genotype = self.genotype[idx]
             snp = self.snp
@@ -166,6 +181,9 @@ class GWASDataIteratorTestCase(unittest.TestCase):
             ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
 
             self.assertEqual(ans, result)
+            count += 1
+        
+        assert count == len(dataiter)
 
     def test_iterate_snp_with_cov(self):
         idx_iter = gwasprs.gwasdata.SNPIterator(self.n_SNP, self.snp_default_step)
@@ -173,11 +191,15 @@ class GWASDataIteratorTestCase(unittest.TestCase):
                                                      style="snp",
                                                      snp_step=self.snp_default_step)
 
-        # for idx, result in zip(idx_iter, dataiter):
-        #     genotype = self.genotype[idx]
-        #     snp = self.snp.loc[idx[1]]
-        #     phenotype = self.phenotype
-        #     cov = self.cov
-        #     ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
+        count = 0
+        for idx, result in zip(idx_iter, dataiter):
+            genotype = self.genotype[idx]
+            snp = self.snp.iloc[idx[1]]
+            phenotype = self.phenotype
+            cov = self.cov
+            ans = gwasprs.gwasdata.GWASData(genotype, phenotype, snp, cov)
 
-        #     self.assertEqual(ans, result)
+            self.assertEqual(ans, result)
+            count += 1
+            
+        assert count == len(dataiter)
