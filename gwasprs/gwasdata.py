@@ -402,15 +402,28 @@ class GWASDataIterator:
         self.famreader = FamReader(bfile_path)
         if cov_path is not None:
             self.covreader = CovReader(cov_path)
+            
+        q1, r1 = divmod(self.bedreader.n_sample, sample_step)
+        q1 = q1+1 if r1 != 0 else q1
+        q2, r2 = divmod(self.bedreader.n_snp, snp_step)
+        q2 = q2+1 if r2 != 0 else q2
 
         if style == "sample":
             self.iterator = SampleIterator(self.bedreader.n_sample, sample_step)
+            self._total_steps = q1
+
         elif style == "snp":
             self.iterator = SNPIterator(self.bedreader.n_snp, snp_step)
+            self._total_steps = q2
+
         elif style == "sample-snp":
             self.iterator = SampleIterator(self.bedreader.n_sample, sample_step).snps(self.bedreader.n_snp, snp_step)
+            self._total_steps = q1 * q2
+
         elif style == "snp-sample":
             self.iterator = SNPIterator(self.bedreader.n_snp, snp_step).samples(self.bedreader.n_sample, sample_step)
+            self._total_steps = q1 * q2
+            
         else:
             raise Exception(f"{style} style is not supported.")
 
@@ -432,6 +445,11 @@ class GWASDataIterator:
             return self.get_data(*next(self.iterator))
         else:
             raise StopIteration
+        
+    def __len__(self):
+        # If usigin the `get_data` method manually,
+        # the total steps may change
+        return self._total_steps
 
     def is_end(self):
         return self.iterator.is_end()
