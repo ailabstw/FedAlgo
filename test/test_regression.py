@@ -1,9 +1,16 @@
+import os
+os.environ['XLA_FLAGS'] = "--xla_force_host_platform_device_count=2"
+
 import unittest
-import gwasprs
-import gwasprs.linalg as linalg
+
 import numpy as np
+import jax
+import jax.numpy as jnp
 from scipy.stats import norm
 from scipy.sparse import csr_array
+
+import gwasprs
+import gwasprs.linalg as linalg
 
 
 class LinearRegressionTestCase(unittest.TestCase):
@@ -97,9 +104,9 @@ class BatchedLinearRegressionTestCase(unittest.TestCase):
         self.n = 111
         self.dim = 13
         self.batch_size = 3
-        self.X = np.random.rand(self.batch_size, self.n, self.dim)
-        self.beta = np.random.rand(self.batch_size, self.dim)
-        self.y = linalg.batched_mvmul(self.X, self.beta) + np.random.rand(self.batch_size, self.n)
+        self.X = jnp.array(np.random.rand(self.batch_size, self.n, self.dim))
+        self.beta = jnp.array(np.random.rand(self.batch_size, self.dim))
+        self.y = linalg.batched_mvmul(self.X, self.beta) + jnp.array(np.random.rand(self.batch_size, self.n))
         self.model = gwasprs.regression.BatchedLinearRegression(self.beta)
 
     def tearDown(self):
@@ -112,6 +119,7 @@ class BatchedLinearRegressionTestCase(unittest.TestCase):
     def test_predict(self):
         result = self.model.predict(self.X)
         np.testing.assert_array_almost_equal(linalg.batched_mvmul(self.X, self.beta), result, decimal=5)
+        assert isinstance(result, jax.Array)
 
     def test_fit(self):
         model = gwasprs.regression.BatchedLinearRegression.fit(self.X, self.y, algo=linalg.BatchedInverseSolver())
@@ -120,17 +128,20 @@ class BatchedLinearRegressionTestCase(unittest.TestCase):
     def test_residual(self):
         result = self.model.residual(self.X, self.y)
         np.testing.assert_array_almost_equal(self.y - self.model.predict(self.X), result, decimal=5)
+        assert isinstance(result, jax.Array)
 
     def test_sse(self):
         result = self.model.sse(self.X, self.y)
         resd = self.model.residual(self.X, self.y)
         ans = linalg.batched_vdot(resd, resd)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
+        assert isinstance(result, jax.Array)
 
     def test_dof(self):
-        result = self.model.dof(np.repeat(self.n, [self.batch_size,]))
+        result = self.model.dof(jnp.array(np.repeat(self.n, [self.batch_size,])))
         ans = np.repeat(self.n - self.dim, [self.batch_size,])
         np.testing.assert_array_equal(ans, result)
+        assert isinstance(result, jax.Array)
 
     def test_t_stats(self):
         sse = self.model.sse(self.X, self.y)
@@ -138,6 +149,7 @@ class BatchedLinearRegressionTestCase(unittest.TestCase):
         dof = self.model.dof(np.repeat(self.n, [self.batch_size,]))
         result = self.model.t_stats(sse, XtX, dof)
         self.assertEqual((self.batch_size, self.dim), result.shape)
+        assert isinstance(result, jax.Array)
 
 
 class BatchedLogisticRegressionTestCase(unittest.TestCase):
@@ -146,12 +158,12 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         self.n = 111
         self.dim = 13
         self.batch_size = 3
-        self.X = np.random.rand(self.batch_size, self.n, self.dim)
-        self.beta = np.random.rand(self.batch_size, self.dim)
+        self.X = jnp.array(np.random.rand(self.batch_size, self.n, self.dim))
+        self.beta = jnp.array(np.random.rand(self.batch_size, self.dim))
         z = linalg.batched_mvmul(self.X, self.beta)
         pred_y = norm.cdf(z - np.mean(z) + np.random.randn(self.batch_size, self.n))
         binarize_2d = lambda batch: list(map(lambda x: 1 if x > 0.5 else 0, batch))
-        self.y = np.array(list(map(binarize_2d, pred_y)))
+        self.y = jnp.array(list(map(binarize_2d, pred_y)))
         self.model = gwasprs.regression.BatchedLogisticRegression(self.beta)
 
     def tearDown(self):
@@ -168,6 +180,8 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         predicted_y = 1 / (1 + np.exp(-linalg.batched_mvmul(self.X, self.beta)))
         np.testing.assert_array_almost_equal(predicted_y, single_result, decimal=5)
         np.testing.assert_array_almost_equal(predicted_y, pmap_result, decimal=5)
+        assert isinstance(pmap_result, jax.Array)
+        assert isinstance(single_result, jax.Array)
 
     def test_fit(self):
         self.model.fit(self.X, self.y)
@@ -177,20 +191,25 @@ class BatchedLogisticRegressionTestCase(unittest.TestCase):
         result = self.model.residual(self.X, self.y)
         ans = self.y - self.model.predict(self.X)
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
+        assert isinstance(result, jax.Array)
 
     def test_gradient(self):
         result = self.model.gradient(self.X, self.y)
         ans = linalg.batched_mvdot(self.X, self.model.residual(self.X, self.y))
         np.testing.assert_array_almost_equal(ans, result, decimal=5)
+        assert isinstance(result, jax.Array)
 
     def test_hessian(self):
-        self.model.hessian(self.X)
+        result = self.model.hessian(self.X)
+        assert isinstance(result, jax.Array)
 
     def test_loglikelihood(self):
-        self.model.loglikelihood(self.X, self.y)
+        result = self.model.loglikelihood(self.X, self.y)
+        assert isinstance(result, jax.Array)
 
     def test_inv_hessian(self):
-        linalg.batched_inv(self.model.hessian(self.X))
+        result = linalg.batched_inv(self.model.hessian(self.X))
+        assert isinstance(result, jax.Array)
 
 
 class BlockedLinearRegressionTestCase(unittest.TestCase):

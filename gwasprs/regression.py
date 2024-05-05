@@ -131,15 +131,15 @@ class BatchedLinearRegression(LinearModel):
             ncores = utils.jax_cpu_cores()
             batch, nsample, ndims = X.shape
             minibatch, remainder = divmod(batch, ncores)
-            A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
-            a = np.reshape(self.coef[:(minibatch*ncores), :], (ncores, minibatch, ndims))
-            Y = np.reshape(pmap_func(A, a), (-1, nsample))
+            A = jnp.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
+            a = jnp.reshape(self.coef[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            Y = jnp.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
                 B = X[(minibatch*ncores):, :, :]
                 b = self.coef[(minibatch*ncores):, :]
                 Z = linalg.batched_mvmul(B, b)
-                Y = np.concatenate((Y, Z), axis=0)
+                Y = jnp.concatenate((Y, Z), axis=0)
             return Y
         else:
             raise ValueError(f"{acceleration} acceleration is not supported.")
@@ -310,15 +310,15 @@ class BatchedLogisticRegression(LinearModel):
             ncores = utils.jax_cpu_cores()
             batch, nsample, ndims = X.shape
             minibatch, remainder = divmod(batch, ncores)
-            A = np.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
-            a = np.reshape(self.__beta[:(minibatch*ncores), :], (ncores, minibatch, ndims))
-            Y = np.reshape(pmap_func(A, a), (-1, nsample))
+            A = jnp.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
+            a = jnp.reshape(self.__beta[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            Y = jnp.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
                 B = X[(minibatch*ncores):, :, :]
                 b = self.__beta[(minibatch*ncores):, :]
                 Z = linalg.batched_logistic_predict(B, b)
-                Y = np.concatenate((Y, Z), axis=0)
+                Y = jnp.concatenate((Y, Z), axis=0)
             return Y
         else:
             raise ValueError(f"{self.acceleration} acceleration is not supported.")
@@ -332,7 +332,7 @@ class BatchedLogisticRegression(LinearModel):
         return linalg.batched_logistic_residual(y, self.predict(X))
 
     def gradient(self, X, y):
-        return linalg.batched_logistic_gradient(X, self.residual(X,y))
+        return linalg.batched_logistic_gradient(X, self.residual(X, y))
 
     def hessian(self, X):
         return linalg.batched_logistic_hessian(X, self.predict(X))
