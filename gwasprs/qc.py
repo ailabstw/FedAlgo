@@ -127,6 +127,7 @@ def create_filtered_bed(
     output, err = bash(plink_cmd)
     return filtered_bfile_path
 
+
 def create_filtered_covariates(filtered_bfile_path, cov_path):
     fam = FamReader(filtered_bfile_path).read()
     cov = CovReader(cov_path).read()
@@ -134,36 +135,6 @@ def create_filtered_covariates(filtered_bfile_path, cov_path):
     filtered_cov_path = filtered_bfile_path+'.cov'
     filtered_cov.to_csv(filtered_cov_path, index=None, sep='\t')
     return filtered_cov_path
-
-'''
-def ld_prune(bfile_path, out_path, include_snp_list = [], remove_ind_list = []):
-    cmd = f"\"{PLINK2_PATH}\" --bfile \"{bfile_path}\" --allow-extra-chr --autosome  --out \"{out_path}\" "
-    cmd = cmd + f" --indep-pairwise {PRUNE_WINDOW} {PRUNE_STEP} {PRUNE_THRESHOLD} "
-
-    if len(remove_ind_list) > 0:
-        with open(f"{out_path}.ind_list", "w") as FF:
-            FF.write("IND\tIND\n")
-            for i,j in remove_ind_list:
-                FF.write(f"{i}\t{j}\n")
-        cmd = cmd + f"--remove \"{out_path}.ind_list\""
-
-    if len(include_snp_list) > 0:
-        with open(f"{out_path}.snp_list", "w") as FF:
-            FF.write("SNP\n")
-            for i in include_snp_list:
-                FF.write(f"{i}\n")
-        cmd = cmd + f"--extract \"{out_path}.snp_list\""
-
-    out, err = call_bash_cmd(cmd)
-
-    with open(f"{out_path}.QC.prune.in") as FF:
-        snp_list = []
-        for i in FF.readline():
-            snp_list.append(i.rstrip())
-
-    return np.array(snp_list)
-'''
-
 
 
 def filter_snp (
@@ -216,7 +187,6 @@ def filter_snp (
     return snp_id
 
 
-
 def cal_het_sd(het_hist: np.ndarray, het_range: Tuple[float,float], het_bin: int):
     bin_edges = np.linspace(het_range[0], het_range[1], num = het_bin+1)
     margin = bin_edges[1] - bin_edges[0]
@@ -230,4 +200,3 @@ def cal_het_sd(het_hist: np.ndarray, het_range: Tuple[float,float], het_bin: int
         )/(het_sum-1)
     )
     return het_std, het_mean
-

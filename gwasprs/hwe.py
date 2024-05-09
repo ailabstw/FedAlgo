@@ -8,45 +8,39 @@ PLINK_HWP = setup_plink_hwp()
 
 
 def read_hardy(out_path: str):
-    HWE = pd.read_csv(f"{out_path}.hardy", sep = r"\s+")
-    HWE.AX = HWE.AX.astype(str)
-    HWE.A1 = HWE.A1.astype(str)
-    HWE["AA"] = HWE.TWO_AX_CT
-    HWE["aa"] = HWE.HOM_A1_CT
-    HWE.loc[HWE.A1 < HWE.AX, "AA"] = HWE.HOM_A1_CT
-    HWE.loc[HWE.A1 < HWE.AX, "aa"] = HWE.TWO_AX_CT
-    ALLELE_COUNT = HWE[["AA", "HET_A1_CT", "aa"]].values
-    return ALLELE_COUNT
+    hwe = pd.read_csv(f"{out_path}.hardy", sep = r"\s+")
+    hwe.AX = hwe.AX.astype(str)
+    hwe.A1 = hwe.A1.astype(str)
+    hwe["AA"] = hwe.TWO_AX_CT
+    hwe["aa"] = hwe.HOM_A1_CT
+    hwe.loc[hwe.A1 < hwe.AX, "AA"] = hwe.HOM_A1_CT
+    hwe.loc[hwe.A1 < hwe.AX, "aa"] = hwe.TWO_AX_CT
+    allele_count = hwe[["AA", "HET_A1_CT", "aa"]].values
+    return allele_count
 
 
-
-
-
-
-def cal_hwe_pvalue(HET, HOM1, HOM2):
+def cal_hwe_pvalue(het, hom1, hom2):
     pvalue_list = []
-    for i in range(len(HET)):
-        pvalue = PLINK_HWP.HweP_py(int(HET[i]), int(HOM1[i]), int(HOM2[i]), 0)
+    for i in range(len(het)):
+        pvalue = PLINK_HWP.HweP_py(int(het[i]), int(hom1[i]), int(hom2[i]), 0)
         pvalue_list.append(pvalue)
 
     return pvalue_list
 
 
-def series_tolist(HET, n):
-    HET = HET.tolist()
-    HET = (c_int32 * n)(*HET)
-    return HET
+def series_tolist(het, n):
+    het = het.tolist()
+    het = (c_int32 * n)(*het)
+    return het
 
-def cal_hwe_pvalue_vec(HET, HOM1, HOM2):
-    n = len(HET)
-    HET = series_tolist(HET, n)
-    HOM1 = series_tolist(HOM1, n)
-    HOM2 = series_tolist(HOM2, n)
+def cal_hwe_pvalue_vec(het, hom1, hom2):
+    n = len(het)
+    het = series_tolist(het, n)
+    hom1 = series_tolist(hom1, n)
+    hom2 = series_tolist(hom2, n)
     pvalue_list = [0.] * n
     pvalue_list = (c_double * n)(*pvalue_list)
 
-    PLINK_HWP.HweP_vec_py(HET, HOM1, HOM2, pvalue_list, n, 0)
+    PLINK_HWP.HweP_vec_py(het, hom1, hom2, pvalue_list, n, 0)
     pvalue_list = pvalue_list[:]
     return pvalue_list
-
-

@@ -749,7 +749,7 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
 
     def update_global_U(self, U):
         U = aggregations.SumUp()(*U)
-        U = orthonormalize(U)
+        U, _ = orthonormalize(U)
         return U
 
     def check_convergence(self, U, prev_U, epsilon):
