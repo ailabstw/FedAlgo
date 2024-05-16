@@ -11,7 +11,6 @@ def get_end_index(curr_idx, step, n):
 
 
 class IndexIterator:
-
     def __init__(self, end_idx: int, start_idx: int = 0, step: int = 1):
         self.current_idx = start_idx
         self.end_idx = end_idx
@@ -26,7 +25,7 @@ class IndexIterator:
     def is_end(self):
         return self.current_idx >= self.end_idx
 
-    def increase_step(self, step = 0):
+    def increase_step(self, step=0):
         if step == 0:
             self.current_idx += self.step
         else:
@@ -46,7 +45,6 @@ class IndexIterator:
 
 
 class FullIterator:
-
     def __init__(self):
         super().__init__()
 
@@ -61,7 +59,6 @@ class FullIterator:
 
 
 class NDIterator(abc.ABC):
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -70,7 +67,6 @@ class NDIterator(abc.ABC):
 
 
 class SNPIterator(NDIterator):
-
     def __init__(self, n_SNP, step: int = 1, sample_iterator=FullIterator()):
         super().__init__()
         self.iter = IndexIterator(n_SNP, 0, step)
@@ -86,14 +82,14 @@ class SNPIterator(NDIterator):
         """
         slc = self.iter.get_step(step)
         range = np.s_[next(self.sample_iterator), slc]
-        
+
         if isinstance(self.sample_iterator, FullIterator):
             self.iter.increase_step(step)
-            
+
         elif self.sample_iterator.is_end():
             self.sample_iterator.reset()
             self.iter.increase_step(step)
-            
+
         return range
 
     def samples(self, n_sample, step: int = 1):
@@ -104,7 +100,7 @@ class SNPIterator(NDIterator):
         if not self.is_end():
             return self.increase_step(self.iter.step)
         raise StopIteration
-    
+
     def is_end(self):
         return self.iter.is_end()
 
@@ -114,7 +110,6 @@ class SNPIterator(NDIterator):
 
 
 class SampleIterator(NDIterator):
-
     def __init__(self, n_sample, step: int = 1, snp_iterator=FullIterator()):
         super().__init__()
         self.iter = IndexIterator(n_sample, 0, step)
@@ -130,14 +125,14 @@ class SampleIterator(NDIterator):
         """
         slc = self.iter.get_step(step)
         range = np.s_[slc, next(self.snp_iterator)]
-        
+
         if isinstance(self.snp_iterator, FullIterator):
             self.iter.increase_step(step)
 
         elif self.snp_iterator.is_end():
             self.snp_iterator.reset()
             self.iter.increase_step(step)
-            
+
         return range
 
     def snps(self, n_SNP, step: int = 1):

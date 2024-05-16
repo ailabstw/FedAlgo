@@ -6,11 +6,8 @@ import numpy as np
 from scipy.sparse import issparse
 import jax
 
-from . import mask, array
-
 
 class AbstractBlockDiagonalMatrix(ABC):
-
     def __init__(self):
         pass
 
@@ -34,7 +31,6 @@ class AbstractBlockDiagonalMatrix(ABC):
 
 
 class BlockDiagonalMatrixIterator:
-
     def __init__(self, bd: AbstractBlockDiagonalMatrix) -> None:
         self.__bd = bd
         self.index = 0
@@ -56,7 +52,10 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
 
     def __init__(self, blocks: List[np.ndarray]) -> None:
         super().__init__()
-        checks = [isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x) for x in blocks]
+        checks = [
+            isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x)
+            for x in blocks
+        ]
         assert np.all(checks)
         self.__blocks = copy.deepcopy(blocks)
 
@@ -90,21 +89,20 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
     @classmethod
     def fromlist(cls, ls, array=np.array):
         return cls([array(x) for x in ls])
-    
+
     @classmethod
     def fromdense(cls, X, nblocks):
         steps = []
         # Check x sizes equal
         for i in range(X.ndim):
-            step = X.shape[i]/nblocks
-            assert int(step) == step,\
-                f"Only equal-sized matrices are supported; \
+            step = X.shape[i] / nblocks
+            assert int(step) == step, f"Only equal-sized matrices are supported; \
                 found unequal sizes at the {i}-dimensional axis. \
                 Please use BlockDiagonalMatrix.fromindex(X, indices)."
             steps.append(int(step))
         X_blocks = []
         for i in range(nblocks):
-            slices = tuple(slice(i*s, (i+1)*s) for s in steps)
+            slices = tuple(slice(i * s, (i + 1) * s) for s in steps)
             X_blocks.append(X[slices])
         return cls(X_blocks)
 
@@ -125,12 +123,16 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
             BlockDiagonalMatrix
         """
         indices = np.array(indices)
-        assert indices.ndim == 3, f"indices must be three-dimensional, got {indices.ndim}"
+        assert (
+            indices.ndim == 3
+        ), f"indices must be three-dimensional, got {indices.ndim}"
         X_blocks = []
         ndim = indices.shape[1]
         for i in range(indices.shape[0]):
             # Get the slices for each dimension of the block
-            slices = tuple(slice(indices[i][d][0], indices[i][d][1]) for d in range(ndim))
+            slices = tuple(
+                slice(indices[i][d][0], indices[i][d][1]) for d in range(ndim)
+            )
             X_blocks.append(X[slices])
         return cls(X_blocks)
 
@@ -156,40 +158,46 @@ class BlockDiagonalMatrix(AbstractBlockDiagonalMatrix):
 
     def __matmul__(self, value):
         if isinstance(value, AbstractBlockDiagonalMatrix):
-            return BlockDiagonalMatrix([x @ y for (x, y) in zip(self.blocks, value.blocks)])
+            return BlockDiagonalMatrix(
+                [x @ y for (x, y) in zip(self.blocks, value.blocks)]
+            )
         elif isinstance(value, (np.ndarray, np.generic, jax.Array)):
             assert value.ndim == 1, f"value must be 1-dimensional, got {value.ndim}"
             rowidx = np.cumsum([0] + [shape[0] for shape in self.blockshapes])
             colidx = np.cumsum([0] + [shape[1] for shape in self.blockshapes])
             res = np.empty(rowidx[-1])
             for i in range(self.nblocks):
-                res.view()[rowidx[i]:rowidx[i+1]] = self[i] @ value.view()[colidx[i]:colidx[i+1]]
+                res.view()[rowidx[i] : rowidx[i + 1]] = (
+                    self[i] @ value.view()[colidx[i] : colidx[i + 1]]
+                )
             return res
 
     def toarray(self):
         return block_diag(*self.blocks)
-    
+
     def tolist(self):
         return [blk.tolist() for blk in self.blocks]
 
     def diagonal(self):
         return np.concatenate([blk.diagonal() for blk in self.blocks])
-    
+
+
 def block_diag(*arrs):
     if arrs == ():
         arrs = ([],)
 
-    assert all([a.ndim == arrs[0].ndim for a in arrs]),\
-        "All arrays must have the same number of dimensions."
+    assert all(
+        [a.ndim == arrs[0].ndim for a in arrs]
+    ), "All arrays must have the same number of dimensions."
     ndim = arrs[0].ndim
 
     shapes = np.array([a.shape for a in arrs])
     out_dtype = np.result_type(*[a.dtype for a in arrs])
     out = np.zeros(np.sum(shapes, axis=0), dtype=out_dtype)
 
-    idx = np.zeros(ndim, dtype='int')
+    idx = np.zeros(ndim, dtype="int")
     for i, sh in enumerate(shapes):
-        slices = tuple(slice(idx[j], idx[j]+sh[j]) for j in range(ndim))
+        slices = tuple(slice(idx[j], idx[j] + sh[j]) for j in range(ndim))
         out[slices] = arrs[i]
         idx += np.array(sh)
     return out

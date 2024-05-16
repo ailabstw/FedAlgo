@@ -12,7 +12,7 @@ class LinearModel(object, metaclass=ABCMeta):
     def __init__(self) -> None:
         raise NotImplementedError
 
-    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+    def predict(self, X: "np.ndarray[(1, 1), np.floating]"):
         raise NotImplementedError
 
 
@@ -25,10 +25,19 @@ class LinearRegression(LinearModel):
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
     """
 
-    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.CholeskySolver(), include_bias=False) -> None:
+    def __init__(
+        self,
+        beta=None,
+        XtX=None,
+        Xty=None,
+        algo=linalg.CholeskySolver(),
+        include_bias=False,
+    ) -> None:
         if beta is None:
             if XtX is None or Xty is None:
-                raise ValueError("Must provide XtX and Xty, since beta is not provided.")
+                raise ValueError(
+                    "Must provide XtX and Xty, since beta is not provided."
+                )
 
             if isinstance(algo, linalg.QRSolver):
                 raise ValueError("QRSolver is not supported in constructor.")
@@ -55,24 +64,34 @@ class LinearRegression(LinearModel):
         k = self.__beta.shape[0] + self.__include_bias
         return nobs - k
 
-    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+    def predict(self, X: "np.ndarray[(1, 1), np.floating]"):
         if issparse(X):
             return X @ self.__beta
         else:
             return linalg.mvmul(X, self.__beta)
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', algo=linalg.CholeskySolver(), include_bias=False):
+    def fit(
+        cls,
+        X: "np.ndarray[(1, 1), np.floating]",
+        y: "np.ndarray[(1,), np.floating]",
+        algo=linalg.CholeskySolver(),
+        include_bias=False,
+    ):
         if isinstance(algo, linalg.QRSolver):
             beta = algo(X, y)
         else:
             beta = algo(stats.unnorm_autocovariance(X), stats.unnorm_covariance(X, y))
-        return LinearRegression(beta = beta, include_bias = include_bias)
+        return LinearRegression(beta=beta, include_bias=include_bias)
 
-    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def residual(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         return y - self.predict(X)
 
-    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def sse(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         res = self.residual(X, y)
         return jnp.vdot(res.T, res)
 
@@ -93,10 +112,19 @@ class BatchedLinearRegression(LinearModel):
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
     """
 
-    def __init__(self, beta = None, XtX = None, Xty = None, algo=linalg.BatchedCholeskySolver(), include_bias=False) -> None:
+    def __init__(
+        self,
+        beta=None,
+        XtX=None,
+        Xty=None,
+        algo=linalg.BatchedCholeskySolver(),
+        include_bias=False,
+    ) -> None:
         if beta is None:
             if XtX is None or Xty is None:
-                raise ValueError("Must provide XtX and Xty, since beta is not provided.")
+                raise ValueError(
+                    "Must provide XtX and Xty, since beta is not provided."
+                )
 
             if isinstance(algo, linalg.QRSolver):
                 raise ValueError("QRSolver is not supported in constructor.")
@@ -123,21 +151,25 @@ class BatchedLinearRegression(LinearModel):
         k = self.coef.shape[-1] + self.__include_bias
         return nobs - k
 
-    def predict(self, X: 'np.ndarray[(1, 1, 1), np.floating]', acceleration="single"):
+    def predict(self, X: "np.ndarray[(1, 1, 1), np.floating]", acceleration="single"):
         if acceleration == "single":
             return linalg.batched_mvmul(X, self.coef)
         elif acceleration == "pmap":
-            pmap_func = pmap(linalg.batched_mvmul, in_axes = (0, 0), out_axes = 0)
-            ncores = utils.jax_cpu_cores()
+            pmap_func = pmap(linalg.batched_mvmul, in_axes=(0, 0), out_axes=0)
+            ncores = utils.jax_dev_count()
             batch, nsample, ndims = X.shape
             minibatch, remainder = divmod(batch, ncores)
-            A = jnp.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
-            a = jnp.reshape(self.coef[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            A = jnp.reshape(
+                X[: (minibatch * ncores), :, :], (ncores, minibatch, nsample, ndims)
+            )
+            a = jnp.reshape(
+                self.coef[: (minibatch * ncores), :], (ncores, minibatch, ndims)
+            )
             Y = jnp.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
-                B = X[(minibatch*ncores):, :, :]
-                b = self.coef[(minibatch*ncores):, :]
+                B = X[(minibatch * ncores) :, :, :]
+                b = self.coef[(minibatch * ncores) :, :]
                 Z = linalg.batched_mvmul(B, b)
                 Y = jnp.concatenate((Y, Z), axis=0)
             return Y
@@ -145,17 +177,36 @@ class BatchedLinearRegression(LinearModel):
             raise ValueError(f"{acceleration} acceleration is not supported.")
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', algo=linalg.BatchedCholeskySolver(), include_bias=False):
+    def fit(
+        cls,
+        X: "np.ndarray[(1, 1, 1), np.floating]",
+        y: "np.ndarray[(1, 1), np.floating]",
+        algo=linalg.BatchedCholeskySolver(),
+        include_bias=False,
+    ):
         if isinstance(algo, linalg.QRSolver):
             raise ValueError("QRSolver is not supported.")
 
-        beta = algo(stats.batched_unnorm_autocovariance(X), stats.batched_unnorm_covariance(X, y))
-        return BatchedLinearRegression(beta = beta, include_bias = include_bias)
+        beta = algo(
+            stats.batched_unnorm_autocovariance(X),
+            stats.batched_unnorm_covariance(X, y),
+        )
+        return BatchedLinearRegression(beta=beta, include_bias=include_bias)
 
-    def residual(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
+    def residual(
+        self,
+        X: "np.ndarray[(1, 1, 1), np.floating]",
+        y: "np.ndarray[(1, 1), np.floating]",
+        acceleration="single",
+    ):
         return y - self.predict(X, acceleration=acceleration)
 
-    def sse(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]', acceleration="single"):
+    def sse(
+        self,
+        X: "np.ndarray[(1, 1, 1), np.floating]",
+        y: "np.ndarray[(1, 1), np.floating]",
+        acceleration="single",
+    ):
         res = self.residual(X, y, acceleration=acceleration)
         return linalg.batched_vdot(res, res)
 
@@ -176,21 +227,34 @@ class BlockedLinearRegression(LinearModel):
         Xty ('np.ndarray[(1,), np.floating]', optional): _description_. Defaults to None.
     """
 
-    def __init__(self, beta = None, XtX = None, Xty = None, nmodels: int = 1, algo=linalg.CholeskySolver()) -> None:
+    def __init__(
+        self,
+        beta=None,
+        XtX=None,
+        Xty=None,
+        nmodels: int = 1,
+        algo=linalg.CholeskySolver(),
+    ) -> None:
         if beta is None:
             if XtX is None or Xty is None:
-                raise ValueError("Must provide XtX and Xty, since beta is not provided.")
+                raise ValueError(
+                    "Must provide XtX and Xty, since beta is not provided."
+                )
 
             if isinstance(algo, linalg.QRSolver):
                 raise ValueError("QRSolver is not supported in constructor.")
 
             if XtX.shape[0] % nmodels != 0:
-                raise ValueError(f"Dimension of XtX ({XtX.shape[0]}) is not divisible by number of models ({nmodels}).")
+                raise ValueError(
+                    f"Dimension of XtX ({XtX.shape[0]}) is not divisible by number of models ({nmodels})."
+                )
 
             self.__beta = algo(XtX, Xty)
         else:
             if beta.shape[0] % nmodels != 0:
-                raise ValueError(f"Dimension of beta ({beta.shape[0]}) is not divisible by number of models ({nmodels}).")
+                raise ValueError(
+                    f"Dimension of beta ({beta.shape[0]}) is not divisible by number of models ({nmodels})."
+                )
 
             self.__beta = beta
 
@@ -220,29 +284,50 @@ class BlockedLinearRegression(LinearModel):
         k = self.coef_dim
         return nobs - k
 
-    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+    def predict(self, X: "np.ndarray[(1, 1), np.floating]"):
         return X @ self.__beta
 
     @classmethod
-    def fit(cls, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nmodels: int = 1, algo=linalg.CholeskySolver()):
+    def fit(
+        cls,
+        X: "np.ndarray[(1, 1), np.floating]",
+        y: "np.ndarray[(1,), np.floating]",
+        nmodels: int = 1,
+        algo=linalg.CholeskySolver(),
+    ):
         if isinstance(algo, linalg.QRSolver):
             beta = algo(X, y)
         else:
             beta = algo(linalg.mmdot(X, X).toarray(), linalg.mvdot(X, y))
-        return BlockedLinearRegression(beta = beta, nmodels = nmodels)
+        return BlockedLinearRegression(beta=beta, nmodels=nmodels)
 
-    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def residual(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         return y - self.predict(X)
 
-    def sse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def sse(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         assert isinstance(X, block.BlockDiagonalMatrix)
         res = self.residual(X, y)
         nobss = [sh[0] for sh in X.blockshapes]
         block_starts = np.cumsum([0] + nobss)
-        sse = np.array([res[block_starts[i]:block_starts[i+1]].T @ res[block_starts[i]:block_starts[i+1]] for i in range(len(block_starts)-1)])
+        sse = np.array(
+            [
+                res[block_starts[i] : block_starts[i + 1]].T
+                @ res[block_starts[i] : block_starts[i + 1]]
+                for i in range(len(block_starts) - 1)
+            ]
+        )
         return sse
 
-    def mse(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', nobss):
+    def mse(
+        self,
+        X: "np.ndarray[(1, 1), np.floating]",
+        y: "np.ndarray[(1,), np.floating]",
+        nobss,
+    ):
         """Mean Square Error, which is sum of square error (sse) divided by degree of freedom (dof).
 
         Args:
@@ -268,27 +353,35 @@ class BlockedLinearRegression(LinearModel):
 
 
 class LogisticRegression(LinearModel):
-    def __init__(self, beta = None) -> None:
+    def __init__(self, beta=None) -> None:
         self.__beta = beta
 
-    def predict(self, X: 'np.ndarray[(1, 1), np.floating]'):
+    def predict(self, X: "np.ndarray[(1, 1), np.floating]"):
         return linalg.logistic_predict(X, self.__beta)
 
-    def fit(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def fit(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         grad = self.gradient(X, y)
         H = self.hessian(X)
         self.__beta = self.beta(grad, H)
 
-    def residual(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def residual(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         return y - self.predict(X)
 
-    def gradient(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def gradient(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         return linalg.mvmul(X.T, self.residual(X, y))
 
-    def hessian(self, X: 'np.ndarray[(1, 1), np.floating]'):
+    def hessian(self, X: "np.ndarray[(1, 1), np.floating]"):
         return linalg.logistic_hessian(X, self.predict(X))
 
-    def loglikelihood(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def loglikelihood(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         return linalg.logistic_loglikelihood(y, self.predict(X))
 
     def beta(self, gradient, hessian, solver=linalg.CholeskySolver()):
@@ -306,17 +399,23 @@ class BatchedLogisticRegression(LinearModel):
             return 1 / (1 + jnp.exp(-linalg.batched_mvmul(X, self.__beta)))
 
         elif self.acceleration == "pmap":
-            pmap_func = pmap(linalg.batched_logistic_predict, in_axes=(0,0), out_axes=0)
-            ncores = utils.jax_cpu_cores()
+            pmap_func = pmap(
+                linalg.batched_logistic_predict, in_axes=(0, 0), out_axes=0
+            )
+            ncores = utils.jax_dev_count()
             batch, nsample, ndims = X.shape
             minibatch, remainder = divmod(batch, ncores)
-            A = jnp.reshape(X[:(minibatch*ncores), :, :], (ncores, minibatch, nsample, ndims))
-            a = jnp.reshape(self.__beta[:(minibatch*ncores), :], (ncores, minibatch, ndims))
+            A = jnp.reshape(
+                X[: (minibatch * ncores), :, :], (ncores, minibatch, nsample, ndims)
+            )
+            a = jnp.reshape(
+                self.__beta[: (minibatch * ncores), :], (ncores, minibatch, ndims)
+            )
             Y = jnp.reshape(pmap_func(A, a), (-1, nsample))
 
             if remainder != 0:
-                B = X[(minibatch*ncores):, :, :]
-                b = self.__beta[(minibatch*ncores):, :]
+                B = X[(minibatch * ncores) :, :, :]
+                b = self.__beta[(minibatch * ncores) :, :]
                 Z = linalg.batched_logistic_predict(B, b)
                 Y = jnp.concatenate((Y, Z), axis=0)
             return Y

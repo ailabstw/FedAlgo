@@ -19,7 +19,9 @@ def nansum(A):
     return snp_sum, non_na_count
 
 
-def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]') -> 'np.ndarray[(1,), np.floating]':
+def mvdot(
+    X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+) -> "np.ndarray[(1,), np.floating]":
     """Matrix-vector dot product
 
     Perform X.T * y.
@@ -37,7 +39,9 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
         colidx = np.cumsum([0] + [shape[1] for shape in X.blockshapes])
         res = np.empty(colidx[-1])
         for i in range(X.nblocks):
-            res.view()[colidx[i]:colidx[i+1]] = X[i].T @ y.view()[rowidx[i]:rowidx[i+1]]
+            res.view()[colidx[i] : colidx[i + 1]] = (
+                X[i].T @ y.view()[rowidx[i] : rowidx[i + 1]]
+            )
         return res
     else:
         # fallback
@@ -47,7 +51,12 @@ def mvdot(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
             return X.T @ y
 
 
-def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1,), np.floating]':
+def mvmul(
+    X: "np.ndarray[(1, 1), np.floating]",
+    y: "np.ndarray[(1,), np.floating]",
+    acceleration: str = "none",
+    n_jobs: int = 1,
+) -> "np.ndarray[(1,), np.floating]":
     """Matrix-vector multiplication
 
     Perform X * y.
@@ -79,7 +88,12 @@ def mvmul(X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating
             return X @ y
 
 
-def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
+def mmdot(
+    X: "np.ndarray[(1, 1), np.floating]",
+    Y: "np.ndarray[(1, 1), np.floating]",
+    acceleration: str = "none",
+    n_jobs: int = 1,
+) -> "np.ndarray[(1, 1), np.floating]":
     """Matrix-matrix dot product
 
     Perform X.T * Y.
@@ -92,7 +106,9 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     assert X.ndim == Y.ndim == 2
-    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
+    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(
+        Y, block.AbstractBlockDiagonalMatrix
+    ):
         if acceleration == "process":
             pool = mp.Pool(n_jobs)
             results = pool.starmap_async(mmdot, zip(X.blocks, Y.blocks))
@@ -102,7 +118,9 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
         elif acceleration == "pmap":
             raise NotImplementedError("pmap acceleration is not implemented.")
         else:
-            return block.BlockDiagonalMatrix([x.T @ y for (x, y) in zip(X.blocks, Y.blocks)])
+            return block.BlockDiagonalMatrix(
+                [x.T @ y for (x, y) in zip(X.blocks, Y.blocks)]
+            )
     else:
         # fallback
         if isinstance(X, jax.Array) or isinstance(Y, jax.Array):
@@ -111,7 +129,12 @@ def mmdot(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floati
             return X.T @ Y
 
 
-def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.floating]', acceleration: str = "none", n_jobs: int = 1) -> 'np.ndarray[(1, 1), np.floating]':
+def matmul(
+    X: "np.ndarray[(1, 1), np.floating]",
+    Y: "np.ndarray[(1, 1), np.floating]",
+    acceleration: str = "none",
+    n_jobs: int = 1,
+) -> "np.ndarray[(1, 1), np.floating]":
     """Matrix multiplication
 
     Perform X * Y.
@@ -124,7 +147,9 @@ def matmul(X: 'np.ndarray[(1, 1), np.floating]', Y: 'np.ndarray[(1, 1), np.float
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     assert X.ndim == Y.ndim == 2
-    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(Y, block.AbstractBlockDiagonalMatrix):
+    if isinstance(X, block.AbstractBlockDiagonalMatrix) and isinstance(
+        Y, block.AbstractBlockDiagonalMatrix
+    ):
         if acceleration == "process":
             pool = mp.Pool(n_jobs)
             results = pool.starmap_async(matmul, zip(X.blocks, Y.blocks))
@@ -154,7 +179,9 @@ def gen_mvmul(y: np.ndarray):
 def inv(X):
     # Add machine eps to avoid zeros in matrix and increase numerical stability
     if isinstance(X, block.AbstractBlockDiagonalMatrix):
-        return block.BlockDiagonalMatrix([np.linalg.inv(blk + np.finfo(blk.dtype).eps) for blk in X.blocks])
+        return block.BlockDiagonalMatrix(
+            [np.linalg.inv(blk + np.finfo(blk.dtype).eps) for blk in X.blocks]
+        )
     else:
         # fallback
         return np.linalg.inv(X + np.finfo(X.dtype).eps)
@@ -190,6 +217,7 @@ def batched_mvdot(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     return vmap(mvdot, (0, 0), 0)(X, y)
 
+
 @jit
 def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Batched matrix-vector multiplication
@@ -205,6 +233,7 @@ def batched_mvmul(X: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     return vmap(mvmul, (0, 0), 0)(X, y)
 
+
 @jit
 def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """Batched matrix-matrix dot product
@@ -219,6 +248,7 @@ def batched_mmdot(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
     """
     return vmap(mmdot, 0, 0)(X, Y)
+
 
 @jit
 def batched_matmul(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -261,12 +291,16 @@ def batched_solve(X: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 @jit
 def batched_solve_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (0, 0), 0)(X, y)
+    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, lower=True), (0, 0), 0)(
+        X, y
+    )
 
 
 @jit
 def batched_solve_trans_lower_triangular(X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return vmap(lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (0, 0), 0)(X, y)
+    return vmap(
+        lambda X, y: jsp.linalg.solve_triangular(X, y, trans="T", lower=True), (0, 0), 0
+    )(X, y)
 
 
 class LinearSolver(object, metaclass=abc.ABCMeta):
@@ -278,7 +312,9 @@ class InverseSolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def __call__(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         # solve beta for X @ beta = y
         # Add machine eps to avoid zeros in matrix and increase numerical stability
         return jnp.linalg.solve(X + np.finfo(X.dtype).eps, y)
@@ -288,7 +324,11 @@ class BatchedInverseSolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
+    def __call__(
+        self,
+        X: "np.ndarray[(1, 1, 1), np.floating]",
+        y: "np.ndarray[(1, 1), np.floating]",
+    ):
         # solve beta for X @ beta = y
         return batched_solve(X, y)
 
@@ -297,7 +337,9 @@ class CholeskySolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def __call__(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         if isinstance(X, jax.Array):
             # L = Cholesky(X)
             # Add machine eps to avoid zeros in matrix and increase numerical stability
@@ -317,8 +359,8 @@ class CholeskySolver(LinearSolver):
                 d = A.shape[1]
                 # Add machine eps to avoid zeros in matrix and increase numerical stability
                 c, low = slinalg.cho_factor(A + np.finfo(A.dtype).eps)
-                x = slinalg.cho_solve((c, low), y.view()[start:start+d])
-                res.view()[start:start+d] = x
+                x = slinalg.cho_solve((c, low), y.view()[start : start + d])
+                res.view()[start : start + d] = x
                 start += d
             return res
         else:
@@ -329,7 +371,11 @@ class BatchedCholeskySolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, X: 'np.ndarray[(1, 1, 1), np.floating]', y: 'np.ndarray[(1, 1), np.floating]'):
+    def __call__(
+        self,
+        X: "np.ndarray[(1, 1, 1), np.floating]",
+        y: "np.ndarray[(1, 1), np.floating]",
+    ):
         # L = Cholesky(X)
         L = batched_cholesky(X)
         # solve Lz = y
@@ -342,7 +388,9 @@ class QRSolver(LinearSolver):
     def __init__(self) -> None:
         super().__init__()
 
-    def __call__(self, X: 'np.ndarray[(1, 1), np.floating]', y: 'np.ndarray[(1,), np.floating]'):
+    def __call__(
+        self, X: "np.ndarray[(1, 1), np.floating]", y: "np.ndarray[(1,), np.floating]"
+    ):
         # Q, R = QR(X)
         Q, R = jnp.linalg.qr(X)
         # solve R beta = Qty
@@ -367,6 +415,7 @@ def orthogonalize(v, ortho, res):
     res = jnp.expand_dims(jnp.array(res), -1)
     projection = jnp.sum(res * ortho, axis=0)
     return v - projection
+
 
 @jit
 def svd(X):
@@ -400,7 +449,9 @@ def check_eigenvector_convergence(current, previous, tolerance, required=None):
     while col < current.shape[1] and not converged:
         # check if the scalar product of the current and the previous eigenvectors
         # is 1, which means the vectors are 'parallel'
-        delta = jnp.abs(jnp.sum(jnp.dot(jnp.transpose(current[:, col]), previous[:, col])))
+        delta = jnp.abs(
+            jnp.sum(jnp.dot(jnp.transpose(current[:, col]), previous[:, col]))
+        )
         deltas.append(delta)
         if delta >= 1 - tolerance:
             nr_converged = nr_converged + 1
@@ -412,7 +463,7 @@ def check_eigenvector_convergence(current, previous, tolerance, required=None):
 
 def update_Us(U, Us, current_iteration):
     Us.append(U)
-    return U, Us, current_iteration+1
+    return U, Us, current_iteration + 1
 
 
 def init_rand_U(m, k1):
@@ -459,9 +510,9 @@ def orthonormalize(M):
 
     Return:
         (np.ndarray[(1,1), np.floating]) : orthonormalized matrix (m, k1)
-        (np.ndarray[(1,), np.floating]) : singular values        
+        (np.ndarray[(1,), np.floating]) : singular values
     """
-    M, S = jsp.linalg.qr(M, mode='economic')
+    M, S = jsp.linalg.qr(M, mode="economic")
     S = abs(jnp.diag(S))
     return M, S
 
@@ -519,6 +570,7 @@ def create_proxy_matrix(A, U):
     P = mmdot(U, A)
     return P
 
+
 def covariance_from_proxy_matrix(P):
     """Calculate covariance matrix from proxy matrix
 
@@ -564,22 +616,24 @@ def init_gram_schmidt(M):
     """
     ortho = [M[:, 0]]
 
-    return jnp.vdot(M[:,0],M[:,0]), ortho
+    return jnp.vdot(M[:, 0], M[:, 0]), ortho
 
 
-def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
-
+def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1, 1), decimal=5):
     if latent_axis[0] != 1:
         GT = GT.T
     if latent_axis[1] != 1:
         SIM = SIM.T
 
     if GT.shape != SIM.shape:
-        raise ValueError(f'Inconcordance matrix shapes: {GT.shape} ground truth, {SIM.shape} simulation')
+        raise ValueError(
+            f"Inconcordance matrix shapes: {GT.shape} ground truth, {SIM.shape} simulation"
+        )
 
-    I = np.identity(GT.shape[1])
+    I = np.identity(GT.shape[1])  # noqa: E741
+
     def __test(A1, A2):
-        A1tA2 = mmdot(A1,A2)
+        A1tA2 = mmdot(A1, A2)
         try:
             np.testing.assert_array_almost_equal(abs(A1tA2), I, decimal=decimal)
         except AssertionError:
@@ -593,6 +647,7 @@ def eigenvec_concordance_estimation(GT, SIM, latent_axis=(1,1), decimal=5):
                 {A2}\n\
                 ==========================================================="
             )
+
     __test(GT, GT)
     __test(SIM, SIM)
     __test(GT, SIM)
@@ -627,13 +682,13 @@ class FederatedStandardization(AbsStandardization):
 
     def local_col_nansum(self, A):
         col_sum, row_count = stats.nansum(A)
-        jump_to = 'global_mean'
+        jump_to = "global_mean"
         return col_sum, row_count, jump_to
 
     def local_imputed_mean(self, A, mean):
         A = stats.impute_with_mean(A, mean)
         col_sum, row_count = stats.sum_and_count(A)
-        jump_to = 'global_mean'
+        jump_to = "global_mean"
         return A, col_sum, row_count, jump_to
 
     def global_mean(self, col_sum, row_count):
@@ -641,9 +696,9 @@ class FederatedStandardization(AbsStandardization):
         row_count = aggregations.SumUp()(*row_count)
         mean = col_sum / row_count
         if (col_sum.astype(np.int32) == col_sum).all():
-            jump_to = 'local_imputed_mean'
+            jump_to = "local_imputed_mean"
         else:
-            jump_to = 'local_ssq'
+            jump_to = "local_ssq"
         return mean, jump_to
 
     def local_ssq(self, A, mean):
@@ -656,7 +711,7 @@ class FederatedStandardization(AbsStandardization):
         ssq = aggregations.SumUp()(*ssq)
         row_count = aggregations.SumUp()(*row_count)
         var = ssq / (row_count - 1)
-        delete = jnp.where(var==0)[0]
+        delete = jnp.where(var == 0)[0]
         var = jnp.delete(var, delete)
         return var, delete
 
@@ -725,6 +780,7 @@ class AbsVerticalSubspaceIteration(abc.ABC):
     def update_local_V(self, A, U, converged, current_iteration, max_iterations):
         raise NotImplementedError
 
+
 class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
     def __init__(self):
         super().__init__()
@@ -732,7 +788,7 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
     def local_init(self, A, k1):
         A = A.T
         V = randn(A.shape[1], k1)
-        V, _ = jsp.linalg.qr(V, mode='economic')
+        V, _ = jsp.linalg.qr(V, mode="economic")
         n_features = A.shape[0]
         return A, V, n_features
 
@@ -763,9 +819,9 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
     def update_local_V(self, A, U, converged, current_iteration, max_iterations):
         V = update_local_V(A, U)
         if not converged and current_iteration < max_iterations:
-            jump_to = 'update_local_U'
+            jump_to = "update_local_U"
         else:
-            jump_to = 'next'
+            jump_to = "next"
         return V, jump_to
 
     @classmethod
@@ -791,11 +847,19 @@ class FederatedVerticalSubspaceIteration(AbsVerticalSubspaceIteration):
 
             # Check convergence & save global H
             H_converged = cls().check_convergence(global_H, prev_H, epsilon)
-            prev_H, Hs, current_iteration = cls().update_global_Us(global_H, Hs, current_iteration)
+            prev_H, Hs, current_iteration = cls().update_global_Us(
+                global_H, Hs, current_iteration
+            )
 
             # Update local G
             for edge_idx in range(len(As)):
-                g, _ = cls().update_local_V(As[edge_idx], global_H, H_converged, current_iteration, max_iterations)
+                g, _ = cls().update_local_V(
+                    As[edge_idx],
+                    global_H,
+                    H_converged,
+                    current_iteration,
+                    max_iterations,
+                )
                 local_Gs[edge_idx] = g
 
         return As, Hs, local_Gs
@@ -817,6 +881,7 @@ class AbsRandomizedSVD(AbsVerticalSubspaceIteration):
     def recontruct_local_V(self, P, Vp):
         raise NotImplementedError
 
+
 class FederatedRandomizedSVD(FederatedVerticalSubspaceIteration):
     def __init__(self):
         super().__init__()
@@ -832,7 +897,7 @@ class FederatedRandomizedSVD(FederatedVerticalSubspaceIteration):
 
     def decompose_global_covariance(self, PPt, k2):
         PPt = aggregations.SumUp()(*PPt)
-        Vp = svd(PPt)[0][:,:k2]
+        Vp = svd(PPt)[0][:, :k2]
         return Vp
 
     def recontruct_local_V(self, P, Vp):
@@ -863,7 +928,10 @@ class FederatedRandomizedSVD(FederatedVerticalSubspaceIteration):
 
         return global_H, local_Gs
 
-class FederatedSVD(FederatedStandardization, FederatedRandomizedSVD, FederatedGramSchmidt):
+
+class FederatedSVD(
+    FederatedStandardization, FederatedRandomizedSVD, FederatedGramSchmidt
+):
     def __init__(self):
         FederatedStandardization.__init__()
         FederatedRandomizedSVD.__init__()
@@ -875,7 +943,9 @@ class FederatedSVD(FederatedStandardization, FederatedRandomizedSVD, FederatedGr
         std_As = FederatedStandardization.standalone(As)
 
         # Vertical subspace iterations
-        Ast, Hs, local_Gs = FederatedVerticalSubspaceIteration.standalone(std_As, k1, epsilon, max_iterations)
+        Ast, Hs, local_Gs = FederatedVerticalSubspaceIteration.standalone(
+            std_As, k1, epsilon, max_iterations
+        )
 
         # Randomized SVD
         global_H, local_Gs = FederatedRandomizedSVD.standalone(Ast, Hs, local_Gs, k2)
@@ -899,8 +969,9 @@ def logistic_predict(X, beta):
     Returns:
         np.ndarray[(1,), np.floating]: Vector.
     """
-    pred_y = 1 / (1 + jnp.exp(-mvmul(X,beta)))
+    pred_y = 1 / (1 + jnp.exp(-mvmul(X, beta)))
     return pred_y
+
 
 @jit
 def logistic_residual(y, pred_y):
@@ -917,6 +988,7 @@ def logistic_residual(y, pred_y):
     """
     return y - pred_y
 
+
 @jit
 def logistic_gradient(X, residual):
     """Logistic gradient vector
@@ -932,6 +1004,7 @@ def logistic_gradient(X, residual):
     """
     return mvdot(X, residual)
 
+
 @jit
 def logistic_hessian(X, pred_y):
     """Logistic hessian matrix
@@ -946,6 +1019,7 @@ def logistic_hessian(X, pred_y):
         np.ndarray[(1, 1), np.floating]: Matrix.
     """
     return matmul(jnp.multiply(X.T, (pred_y * (1 - pred_y)).T), X)
+
 
 @jit
 def logistic_loglikelihood(y, pred_y):
@@ -964,7 +1038,10 @@ def logistic_loglikelihood(y, pred_y):
         np.ndarray[(1,), np.floating]: float.
     """
     epsilon = jnp.finfo(float).eps
-    return jnp.sum(y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon))
+    return jnp.sum(
+        y * jnp.log(pred_y + epsilon) + (1 - y) * jnp.log(1 - pred_y + epsilon)
+    )
+
 
 @jit
 def batched_logistic_predict(X, beta):
@@ -979,7 +1056,8 @@ def batched_logistic_predict(X, beta):
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return vmap(logistic_predict, (0,0), 0)(X, beta)
+    return vmap(logistic_predict, (0, 0), 0)(X, beta)
+
 
 @jit
 def batched_logistic_residual(y, pred_y):
@@ -994,7 +1072,8 @@ def batched_logistic_residual(y, pred_y):
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return vmap(logistic_residual, (0,0), 0)(y, pred_y)
+    return vmap(logistic_residual, (0, 0), 0)(y, pred_y)
+
 
 @jit
 def batched_logistic_gradient(X, residual):
@@ -1009,7 +1088,8 @@ def batched_logistic_gradient(X, residual):
     Returns:
         np.ndarray[(1, 1), np.floating]: Batched vector.
     """
-    return vmap(logistic_gradient, (0,0), 0)(X, residual)
+    return vmap(logistic_gradient, (0, 0), 0)(X, residual)
+
 
 @jit
 def batched_logistic_hessian(X, pred_y):
@@ -1024,7 +1104,8 @@ def batched_logistic_hessian(X, pred_y):
     Returns:
         np.ndarray[(1, 1, 1), np.floating]: Batched matrix.
     """
-    return vmap(logistic_hessian, (0,0), 0)(X, pred_y)
+    return vmap(logistic_hessian, (0, 0), 0)(X, pred_y)
+
 
 @jit
 def batched_logistic_loglikelihood(y, pred_y):
@@ -1042,9 +1123,4 @@ def batched_logistic_loglikelihood(y, pred_y):
     Returns:
         np.ndarray[(1,), np.floating]: Batched vector.
     """
-    return vmap(logistic_loglikelihood, (0,0), 0)(y, pred_y)
-
-
-
-
-
+    return vmap(logistic_loglikelihood, (0, 0), 0)(y, pred_y)

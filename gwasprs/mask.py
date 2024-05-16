@@ -9,7 +9,7 @@ def isnonnan(X: np.ndarray, axis=1):
     elif isinstance(X, jax.Array):
         return jnp.sum(jnp.isnan(X), axis=axis) == 0
     else:
-        raise TypeError(f"X must be either a numpy array or a jax array.")
+        raise TypeError("X must be either a numpy array or a jax array.")
 
 
 def dropnan(X: np.ndarray, axis=1):
@@ -17,13 +17,13 @@ def dropnan(X: np.ndarray, axis=1):
     return X[nonnan_idx]
 
 
-def get_mask(X: 'np.ndarray[(1, 1), np.floating]'):
+def get_mask(X: "np.ndarray[(1, 1), np.floating]"):
     if isinstance(X, (np.ndarray, np.generic)):
         return np.expand_dims(isnonnan(X, axis=1), -1)
     elif isinstance(X, jax.Array):
         return jnp.expand_dims(isnonnan(X, axis=1), -1)
     else:
-        raise TypeError(f"X must be either a numpy array or a jax array.")
+        raise TypeError("X must be either a numpy array or a jax array.")
 
 
 def nonnan_count(x, axis=0):
@@ -35,4 +35,4 @@ def nonnan_count(x, axis=0):
     elif isinstance(x, jax.Array):
         return jnp.sum(jnp.logical_not(jnp.isnan(x)), axis=axis)
     else:
-        raise TypeError(f"X must be either a numpy array or a jax array.")
+        raise TypeError("X must be either a numpy array or a jax array.")

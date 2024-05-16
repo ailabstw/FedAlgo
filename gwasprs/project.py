@@ -1,7 +1,6 @@
 import abc
 
 from jax import numpy as jnp
-from jax import scipy as jsp
 
 from . import stats, linalg, aggregations
 
@@ -24,17 +23,20 @@ def compute_residuals(M, orthogonalized, eigen_idx, norms):
     residuals = []
     for res_idx in range(eigen_idx):
         u = orthogonalized[res_idx]
-        v = M[:,eigen_idx]
-        r = jnp.vdot(u,v)/norms[res_idx]
+        v = M[:, eigen_idx]
+        r = jnp.vdot(u, v) / norms[res_idx]
         residuals.append(r)
 
     return residuals
 
+
 def update_ortho_vectors(ortho_v, orthogonalized):
     orthogonalized.append(ortho_v)
 
+
 def compute_norm(ortho_v):
     return jnp.vdot(ortho_v, ortho_v)
+
 
 class AbsGramSchmidt(abc.ABC):
     def __init__(self):
@@ -42,25 +44,26 @@ class AbsGramSchmidt(abc.ABC):
 
     def local_first_norm(self, M):
         raise NotImplementedError
-    
-    def global_first_norm(self, partial_norm): 
+
+    def global_first_norm(self, partial_norm):
         raise NotImplementedError
-    
+
     def local_residuals(self, M, ortho_v, eigen_idx, norms):
         raise NotImplementedError
-    
+
     def global_residuals(self, residuals):
         raise NotImplementedError
-    
+
     def local_nth_norm(self, M, ortho_v, eigen_idx, residuals):
         raise NotImplementedError
-    
+
     def global_nth_norm(self, global_norms, partial_norm, eigen_idx, k2):
         raise NotImplementedError
-    
+
     def local_normalization(self, global_norms, ortho_v):
         raise NotImplementedError
-    
+
+
 class FederatedGramSchmidt(AbsGramSchmidt):
     def __init__(self):
         super().__init__()
@@ -68,40 +71,40 @@ class FederatedGramSchmidt(AbsGramSchmidt):
     def local_first_norm(self, M):
         partial_norm, orthogonalized = linalg.init_gram_schmidt(M)
         return partial_norm, orthogonalized
-    
+
     def global_first_norm(self, partial_norm):
         global_norms = [aggregations.SumUp()(*partial_norm)]
         eigen_idx = 1
         return global_norms, eigen_idx
-    
+
     def local_residuals(self, M, orthogonalized, eigen_idx, norms):
         residuals = compute_residuals(M, orthogonalized, eigen_idx, norms)
         return residuals
-    
+
     def global_residuals(self, residuals):
         residuals = aggregations.SumUp()(*residuals)
         return residuals
-    
+
     def local_nth_norm(self, M, orthogonalized, eigen_idx, residuals):
-        ortho_v = linalg.orthogonalize(M[:,eigen_idx], orthogonalized, residuals)
+        ortho_v = linalg.orthogonalize(M[:, eigen_idx], orthogonalized, residuals)
         update_ortho_vectors(ortho_v, orthogonalized)
         partial_norm = compute_norm(ortho_v)
         return partial_norm
-    
+
     def global_nth_norm(self, global_norms, partial_norm, eigen_idx, k2):
         norm = aggregations.SumUp()(*partial_norm)
         global_norms.append(norm)
         eigen_idx += 1
-        if eigen_idx < k2-1:
-            jump_to = 'local_residuals'
+        if eigen_idx < k2 - 1:
+            jump_to = "local_residuals"
         else:
-            jump_to = 'next'
+            jump_to = "next"
         return global_norms, eigen_idx, jump_to
-    
+
     def local_normalization(self, global_norms, orthogonalized):
         M = stats.normalize(global_norms, orthogonalized)
         return M
-    
+
     @classmethod
     def standalone(cls, MTXs):
         # First eigenvector
@@ -117,17 +120,23 @@ class FederatedGramSchmidt(AbsGramSchmidt):
             # Calculate residuals
             residuals = []
             for edge_idx in range(len(MTXs)):
-                res = cls().local_residuals(MTXs[edge_idx], orthos[edge_idx], eigen_idx, global_norms)
+                res = cls().local_residuals(
+                    MTXs[edge_idx], orthos[edge_idx], eigen_idx, global_norms
+                )
                 residuals.append(res)
             residuals = cls().global_residuals(residuals)
 
             # Calculate norms
             partial_norms = []
             for edge_idx in range(len(MTXs)):
-                norm = cls().local_nth_norm(MTXs[edge_idx], orthos[edge_idx], eigen_idx, residuals)
+                norm = cls().local_nth_norm(
+                    MTXs[edge_idx], orthos[edge_idx], eigen_idx, residuals
+                )
                 partial_norms.append(norm)
-            global_norms, _, _ = cls().global_nth_norm(global_norms, partial_norms, eigen_idx, MTXs[0].shape[1])
-        
+            global_norms, _, _ = cls().global_nth_norm(
+                global_norms, partial_norms, eigen_idx, MTXs[0].shape[1]
+            )
+
         # Normalize the length to 1
         orthonormal = []
         for edge_idx in range(len(MTXs)):
