@@ -10,7 +10,6 @@ from . import block
 
 
 class Aggregation:
-
     def __call__(self, *xs):
         self.n = len(xs)
         assert self.n > 0, "xs should not be empty"
@@ -19,7 +18,9 @@ class Aggregation:
 
         if x is None:
             return None
-        elif isinstance(x, list) and (isinstance(x[0], (np.ndarray, np.generic, jax.Array)) or issparse(x[0])):
+        elif isinstance(x, list) and (
+            isinstance(x[0], (np.ndarray, np.generic, jax.Array)) or issparse(x[0])
+        ):
             return self.aggregate_list_of_array(*xs)
         elif isinstance(x, list):
             return self.aggregate_list_of_list(*xs)
@@ -27,41 +28,53 @@ class Aggregation:
             return self.aggregate_scalars(*xs)
         elif isinstance(x, (np.ndarray, np.generic, jax.Array)) or issparse(x):
             x_types = set(type(a) for a in xs)
-            assert len(x_types) == 1, f"All array types must be consistent, but got {x_types}."
+            assert (
+                len(x_types) == 1
+            ), f"All array types must be consistent, but got {x_types}."
             return self.aggregate_arrays(*xs)
         elif isinstance(x, block.BlockDiagonalMatrix):
             return self.aggregate_block_diags(*xs)
         else:
-            raise NotImplementedError(f"{type(x)} is not supported, expected int, float, np.ndarray, scipy sparse array or list of np.ndarray")
+            raise NotImplementedError(
+                f"{type(x)} is not supported, expected int, float, np.ndarray, scipy sparse array or list of np.ndarray"
+            )
 
     @abstractmethod
     def aggregate_list_of_array(self, *xs):
-        raise NotImplementedError("Abstract aggregation for list of array is not implemented yet")
+        raise NotImplementedError(
+            "Abstract aggregation for list of array is not implemented yet"
+        )
 
     @abstractmethod
     def aggregate_list_of_list(self, *xs):
-        raise NotImplementedError("Abstract aggregation for list is not implemented yet")
+        raise NotImplementedError(
+            "Abstract aggregation for list is not implemented yet"
+        )
 
     @abstractmethod
     def aggregate_scalars(self, *xs):
-        raise NotImplementedError("Abstract aggregation for scalars is not implemented yet")
+        raise NotImplementedError(
+            "Abstract aggregation for scalars is not implemented yet"
+        )
 
     @abstractmethod
     def aggregate_arrays(self, *xs):
-        raise NotImplementedError("Abstract aggregation for arrays is not implemented yet")
+        raise NotImplementedError(
+            "Abstract aggregation for arrays is not implemented yet"
+        )
 
     @abstractmethod
     def aggregate_block_diags(self, *xs):
-        raise NotImplementedError("Abstract aggregation for `BlockDiagonalMatrix` is not implemented yet")
+        raise NotImplementedError(
+            "Abstract aggregation for `BlockDiagonalMatrix` is not implemented yet"
+        )
 
 
 class SumUp(Aggregation):
-
     def aggregate_list_of_array(self, *xs):
         agg_weight = []
         len_of_weight = len(xs[0])
         for j in range(len_of_weight):
-
             tmp_array = xs[0][j]
             for i in range(1, self.n):
                 tmp_array = tmp_array + xs[i][j]
@@ -89,7 +102,6 @@ class SumUp(Aggregation):
 
 
 class Intersect(Aggregation):
-
     def aggregate_list_of_array(self, *xs):
         raise NotImplementedError("InterSect for list of array is not implemented yet")
 
@@ -103,7 +115,7 @@ class Intersect(Aggregation):
         intersected = OrderedSet(xs[0].tolist())
         for x in xs[1:]:
             intersected.intersection_update(x.tolist())
-        
+
         if isinstance(xs[0], (np.ndarray, np.generic)):
             return np.array(list(intersected))
         elif isinstance(xs[0], jax.Array):
@@ -125,7 +137,6 @@ class Intersect(Aggregation):
 
 
 class IsSame(Aggregation):
-
     def aggregate_list_of_array(self, xs):
         raise NotImplementedError("CheckSame for list of array is not implemented yet")
 

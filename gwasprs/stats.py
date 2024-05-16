@@ -2,7 +2,6 @@ import numpy as np
 import scipy.stats as stats
 from jax import jit, vmap, pmap
 from jax import numpy as jnp
-from jax import scipy as jsp
 from jax.typing import ArrayLike
 from . import linalg, utils
 
@@ -67,7 +66,7 @@ def batched_unnorm_autocovariance(
         return linalg.batched_mmdot(X, X)
     elif acceleration == "pmap":
         pmap_func = pmap(linalg.batched_mmdot, in_axes=0, out_axes=0)
-        ncores = utils.jax_cpu_cores()
+        ncores = utils.jax_dev_count()
         batch, nsample, ndims = X.shape
         minibatch, remainder = divmod(batch, ncores)
         A = np.reshape(
@@ -103,23 +102,43 @@ def blocked_unnorm_covariance(
 
 
 def t_dist_pvalue(t_stat, df):
-    return 2 * (1 - stats.t.cdf(np.abs(t_stat), df))
+    return 2.0 * stats.t.sf(np.abs(t_stat), df)
 
 
 # Logistic
 
 
 @jit
-def logistic_stats(beta, inv_hessian):
+def _cal_square_tstat(beta, inv_hessian):
     std = jnp.sqrt(inv_hessian.diagonal())
     t_stat = beta / std
-    p_value = 1 - jsp.stats.chi2.cdf(jnp.square(t_stat), 1)
+    square_t_stat = jnp.square(t_stat)
+    return t_stat, square_t_stat
+
+
+def chi2_dist_pvalue(square_t_stat, df=1):
+    p_value = stats.chi2.sf(np.array(square_t_stat), df)
+    return p_value
+
+
+def logistic_stats(beta, inv_hessian):
+    """
+    beta: [feat]
+    inv_hessian: [feat, feat]
+    """
+    t_stat, square_t_stat = _cal_square_tstat(beta, inv_hessian)
+    p_value = chi2_dist_pvalue(square_t_stat)
     return t_stat, p_value
 
 
-@jit
 def batched_logistic_stats(beta, inv_hessian):
-    return vmap(logistic_stats, (0, 0), (0, 0))(beta, inv_hessian)
+    """
+    beta: [batch, feat]
+    inv_hessian: [batch, feat, feat]
+    """
+    t_stat, square_t_stat = vmap(_cal_square_tstat, (0, 0), (0, 0))(beta, inv_hessian)
+    p_value = chi2_dist_pvalue(square_t_stat)
+    return t_stat, p_value
 
 
 # PCA
@@ -159,6 +178,7 @@ def impute_with_mean(
     The origin implementation may encounter the problem of too large indice for xla scatter
     Here use batch to solve the trouble.
     Noted that at function is only allow for jnp.array.
+    Not add @jit since the size of some matrix (na_indices) varies
     """
     feat_num = len(means)
     _start = 0
