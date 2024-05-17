@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.stats as stats
+import jax
 from jax import jit, vmap, pmap
 from jax import numpy as jnp
 from jax.typing import ArrayLike
@@ -165,30 +166,25 @@ def nansum(A):
     return snp_sum, sample_count
 
 
-# def impute_with_mean(A, mean):
-#    na_indices = jnp.where(jnp.isnan(A))
-#    A = A.at[na_indices].set(jnp.take(mean, na_indices[1]))
-#    return A
-
-
-def impute_with_mean(
-    A: ArrayLike, means: ArrayLike, batch_size: int = 10000
-) -> ArrayLike:
-    """Fill na with mean
-    The origin implementation may encounter the problem of too large indice for xla scatter
-    Here use batch to solve the trouble.
-    Noted that at function is only allow for jnp.array.
-    Not add @jit since the size of some matrix (na_indices) varies
+def impute_with_mean(A: ArrayLike, mean: ArrayLike):
     """
-    feat_num = len(means)
-    _start = 0
-    while _start < feat_num:
-        _end = min(_start + batch_size, feat_num)
-        na_indices = jnp.where(jnp.isnan(A[:, _start:_end]))
-        na_indices = (na_indices[0], na_indices[1] + _start)
-        A = A.at[na_indices].set(jnp.take(means, na_indices[1]))
-        _start = _end
+    Fill NAs with column means.
+    Deprecate the jax implementation due to the resource consumption
+    and the lack of `jit` advantage.
+    The following way is really fast.
+    """
+    if isinstance(A, jax.Array):
+        isjax = True
+        A = np.array(A)
+        mean = np.array(mean)
+        
+    na_indices = np.where(np.isnan(A))
+    A[na_indices] = np.take(mean, na_indices[1])
 
+    if isjax:
+        A = jnp.array(A)
+        mean = jnp.array(mean)
+    
     return A
 
 
