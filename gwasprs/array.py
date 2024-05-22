@@ -1,7 +1,6 @@
 from typing import NewType
 
 import numpy as np
-import numpy.typing as npt
 from scipy.stats import ortho_group
 from scipy.sparse import issparse, hstack, vstack
 import jax
@@ -10,11 +9,6 @@ from jax import scipy as jsp
 from jax import random
 
 from . import linalg, iterator
-
-
-Str1DArray = NewType("Str1DArray", npt.NDArray[np.byte])
-IntNDArray = NewType("IntNDArray", npt.NDArray[np.int32])
-FloatNDArray = NewType("FloatNDArray", npt.NDArray[np.float32])
 
 
 def colons(n):

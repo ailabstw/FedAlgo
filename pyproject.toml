@@ -27,12 +27,12 @@ script = "build.py"
 generate-setup-file = true
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.12"
+python = ">=3.9,<3.12"
 numpy = [
-    {version = "~1", python = ">=3.8,<3.12"},
+    {version = "~1", python = ">=3.9,<3.12"},
 ]
 scipy = [
-    {version = "~1", python = ">=3.8,<3.12"},
+    {version = "~1", python = ">=3.9,<3.12"},
 ]
 jax = "~0.4"
 jaxlib = "^0.4"
@@ -40,6 +40,10 @@ pooch = "~1"
 bed_reader = "~0.2"
 pandas = "^2"
 ordered_set = "~4"
+seaborn = "*"
+plotnine = "0.13.4"
+polars = "0.20.20"
+pyarrow = "*"
 
 [tool.poetry.group.test]
 
