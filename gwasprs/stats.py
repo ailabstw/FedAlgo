@@ -4,6 +4,7 @@ import jax
 from jax import jit, vmap, pmap
 from jax import numpy as jnp
 from jax.typing import ArrayLike
+
 from . import linalg, utils
 
 

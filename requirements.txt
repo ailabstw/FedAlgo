@@ -5,3 +5,7 @@ pooch
 bed_reader
 pandas
 ordered_set
+polars==0.20.20
+seaborn
+plotnine==0.13.4
+pyarrow

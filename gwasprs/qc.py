@@ -5,14 +5,10 @@ import pandas as pd
 import numpy as np
 import numpy.typing as npt
 
-from .utils import bash
-from .setup import setup_plink2
+from .utils import bash, PLINK2_PATH
 from .hwe import read_hardy, cal_hwe_pvalue_vec
 from .reader import FamReader, CovReader
 from .gwasdata import format_cov
-
-
-PLINK2_PATH = setup_plink2()
 
 
 def cal_qc_client(
