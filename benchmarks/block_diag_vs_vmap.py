@@ -3,8 +3,6 @@ from scipy.linalg import block_diag
 import jax.numpy as jnp
 import jax.scipy.linalg as jslinalg
 
-import gwasprs
-
 
 N = 1000
 

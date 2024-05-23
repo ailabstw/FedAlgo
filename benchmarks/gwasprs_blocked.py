@@ -1,7 +1,7 @@
 import pyperf
 import numpy as np
 
-import gwasprs
+from fedalgo import gwasprs
 
 
 N = 8000

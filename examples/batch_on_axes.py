@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import norm
 
-import gwasprs
+from fedalgo import gwasprs
 
 class time_batch_matrix_calculation:
 

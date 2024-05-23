@@ -2,7 +2,7 @@ import pyperf
 import numpy as np
 import jax.numpy as jnp
 
-import gwasprs
+from fedalgo import gwasprs
 
 
 N = 8000

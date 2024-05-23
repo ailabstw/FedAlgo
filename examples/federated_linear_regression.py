@@ -1,7 +1,7 @@
 import numpy as np
 from bed_reader import open_bed
 
-import gwasprs
+from fedalgo import gwasprs
 
 # client
 

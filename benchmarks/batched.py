@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from bed_reader import open_bed
 import pandas as pd
 
-import gwasprs
+from fedalgo import gwasprs
 
 
 BATCH = 10

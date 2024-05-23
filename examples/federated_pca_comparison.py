@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import jax.numpy as jnp
 
-import gwasprs 
+from fedalgo import gwasprs
 
 
 # The plink2 result was saved in plink_out_path
