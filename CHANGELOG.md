@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 24.05.23
+
+### Changed
+
+- Initial release of `fedalgo`, the renamed version of `gwasprs`, to make this repository more general to support any federated algorithms.
+
+### Added
+- Add federated Cox PH Regression `cox.py`.
+
+### Migration Guide
+To help users transition from `gwasprs` to `fedalgo`, follow these steps:
+
+**Package Import:**
+   Update all your import statements in the codebase.
+   ```python
+   # Old import
+   import gwasprs
+
+   # New import
+   from fedalgo import gwasprs
+   ```
+
 ## [0.21.0]
 
 ### Fixed

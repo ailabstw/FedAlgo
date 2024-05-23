@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "fedalgo"
-version = "0.21.0"
+version = "1.0.0"
 
 authors = [
     "Yueh-Hua Tu <yuehhua.tu@ailabs.tw>",

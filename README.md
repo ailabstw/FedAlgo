@@ -1,4 +1,5 @@
-# Federated-PRS
+# Federated-Algorithms
+This repository contains low-level function to support federated analysis, now mainly for Federated Genome Wide Association Study (GWAS) and Federated Survival Analysis.
 
 ## Compilation
 
@@ -12,12 +13,8 @@ Execute scripts in `scripts` to compile external programs and install executable
 
 Automatic compilation and installation are recorded in `.gitlab-ci.yml` for CI and `setup.py` for packaging.
 
-## Development information
-
-you can find token in docs
-
 
 ## References
-
-- [sPLINK: a hybrid federated tool as a robust alternative to meta-analysis in genome-wide association studies](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02562-1)
-- [Federated-SVD](https://arxiv.org/pdf/2205.12109.pdf)
+- [Federated GWAS Regression & Mechanism] [sPLINK: a hybrid federated tool as a robust alternative to meta-analysis in genome-wide association studies](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02562-1)
+- [Federated SVD] [Federated horizontally partitioned principal component analysis for biomedical applications](https://academic.oup.com/bioinformaticsadvances/article/2/1/vbac026/6574370?login=false)
+- [Federated Cox PH Regression] [DC-COX: Data collaboration Cox proportional hazards model for privacy-preserving survival analysis on multiple parties](https://www.sciencedirect.com/science/article/pii/S1532046422002696?via%3Dihub)
