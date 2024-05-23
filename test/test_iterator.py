@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-import gwasprs
+from fedalgo import gwasprs
 
 
 class IteratorTestCase(unittest.TestCase):

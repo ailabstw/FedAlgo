@@ -25,7 +25,7 @@ from plotnine import (
     theme,
 )
 
-from gwasprs.utils import GWASPlotConst  # don't change to `from .utils` to make python3 gwasplot.py work
+from fedalgo.gwasprs.utils import GWASPlotConst  # don't change to `from .utils` to make python3 gwasplot.py work
 
 def read_glm(
     glm_path: str, chr_col: str, pos_col: str, p_col: str, sep: str

@@ -4,7 +4,7 @@ import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
 
-import gwasprs
+from fedalgo import gwasprs
 
 
 class CovarianceTestCase(unittest.TestCase):

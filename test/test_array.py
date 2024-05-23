@@ -1,8 +1,7 @@
 import unittest
 import numpy as np
 
-import gwasprs.array as array
-
+from fedalgo.gwasprs import array 
 
 class ArrayIteratorTestCase(unittest.TestCase):
 

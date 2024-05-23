@@ -1,6 +1,6 @@
 import unittest
 
-from gwasprs.ld import prune_ld, match_snp_sets, extract_snps, read_snp_list
+from fedalgo.gwasprs.ld import prune_ld, match_snp_sets, extract_snps, read_snp_list
 
 
 class LDPruningTestCase(unittest.TestCase):

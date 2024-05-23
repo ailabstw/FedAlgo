@@ -1,9 +1,10 @@
 import unittest
-import gwasprs
+
 import numpy as np
 from scipy.sparse import coo_array, csr_array
 import jax.numpy as jnp
 
+from fedalgo import gwasprs
 
 class SumUpTestCase(unittest.TestCase):
 

@@ -1,5 +1,5 @@
 import unittest
-import gwasprs
+from fedalgo import gwasprs
 
 
 bfile_path = './data/test_bfile/hapmap1_100'

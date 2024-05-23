@@ -1,9 +1,10 @@
 import unittest
-import gwasprs
-import gwasprs.linalg as linalg
-from gwasprs.block import block_diag
 import numpy as np
 import jax.numpy as jnp
+
+from fedalgo import gwasprs
+import fedalgo.gwasprs.linalg as linalg
+from fedalgo.gwasprs.block import block_diag
 
 
 class BlockDiagonalTestCase(unittest.TestCase):

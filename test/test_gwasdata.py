@@ -2,7 +2,7 @@ import unittest
 import os
 import numpy as np
 import pandas as pd
-import gwasprs
+from fedalgo import gwasprs
 
 bfile_path = os.path.join(os.getcwd(), 'data/test_bfile/hapmap1_100')
 cov_path = os.path.join(os.getcwd(), 'data/test_bfile/hapmap1_100.cov')
