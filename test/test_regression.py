@@ -9,8 +9,8 @@ import jax.numpy as jnp
 from scipy.stats import norm
 from scipy.sparse import csr_array
 
-import gwasprs
-import gwasprs.linalg as linalg
+from fedalgo import gwasprs
+import fedalgo.gwasprs.linalg as linalg
 
 
 class LinearRegressionTestCase(unittest.TestCase):

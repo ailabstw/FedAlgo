@@ -1,5 +1,4 @@
 FROM python:3.9
-MAINTAINER Yueh-Hua Tu<yuehhua.tu@ailabs.tw>
 
 # basic packages
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -22,9 +21,9 @@ RUN locale-gen en_US.UTF-8 \
  && echo $TZ | tee /etc/timezone \
  && dpkg-reconfigure --frontend noninteractive tzdata
 
-WORKDIR /gwasprs
+WORKDIR /fedalgo
 
-COPY . /gwasprs/
+COPY . /fedalgo/
 
 RUN pip install virtualenv \
  && virtualenv venv \

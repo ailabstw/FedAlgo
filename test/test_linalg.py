@@ -1,10 +1,12 @@
 import unittest
-import gwasprs
+
 import numpy as np
 import scipy.linalg as slinalg
 from jax import random
 import jax.numpy as jnp
 import jax.scipy as jsp
+
+from fedalgo import gwasprs
 
 
 class LinAlgTestCase(unittest.TestCase):

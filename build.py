@@ -7,7 +7,7 @@ from setuptools_cpp import ExtensionBuilder
 
 
 PLINK2_FILENAME = "plink.zip"
-PLINK2_DST = "gwasprs/bin/"
+PLINK2_DST = "fedalgo/gwasprs/bin/"
 MODE = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 
 
@@ -38,7 +38,7 @@ def build(setup_kwargs):
         {
             "ext_modules": [
                 Extension(
-                    "gwasprs.plink_hwp",
+                    "fedalgo.gwasprs.plink_hwp",
                     sources = ["externals/plink_hwp.cc"],
                     library_dirs = ['externals'],
                 ),

@@ -3,7 +3,7 @@ requires = ["poetry-core", "setuptools>=61.0", "setuptools-cpp"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "gwasprs"
+name = "fedalgo"
 version = "0.21.0"
 
 authors = [
@@ -12,7 +12,7 @@ authors = [
     "Jian-Hung Wen <jianhung.wen@ailabs.tw>",
 ]
 
-description = "A GWAS-PRS package for supporting federated analysis"
+description = "A package for supporting federated analysis"
 readme = "README.md"
 
 classifiers = [

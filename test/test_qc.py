@@ -4,9 +4,9 @@ import logging
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/..')
 
-from gwasprs.qc import cal_qc_client, filter_snp, cal_het_sd, create_filtered_bed, filter_ind
-from gwasprs.gwasdata import AUTOSOME_LIST
-from gwasprs.reader import BimReader, FamReader
+from fedalgo.gwasprs.qc import cal_qc_client, filter_snp, cal_het_sd, create_filtered_bed, filter_ind
+from fedalgo.gwasprs.gwasdata import AUTOSOME_LIST
+from fedalgo.gwasprs.reader import BimReader, FamReader
 
 logging.basicConfig(level=logging.DEBUG)
 

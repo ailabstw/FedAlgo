@@ -1,6 +1,6 @@
 import unittest
 
-from gwasprs.gwasplot import read_glm, format_glm, prepare_manhattan, plot_manhattan, prepare_qq, plot_qq
+from fedalgo.gwasprs.gwasplot import read_glm, format_glm, prepare_manhattan, plot_manhattan, prepare_qq, plot_qq
 
 class GWASPlotTestCase(unittest.TestCase):
     def setUp(self):
